@@ -8,6 +8,7 @@ contextBridge.exposeInMainWorld('unravel', {
   search: (query) => ipcRenderer.invoke('gmail:search', query),
   getThread: (input) => ipcRenderer.invoke('gmail:thread', input),
   downloadZip: (payload) => ipcRenderer.invoke('zip:download', payload),
+  preview: (payload) => ipcRenderer.invoke('attachment:preview', payload),
   reveal: (path) => ipcRenderer.invoke('shell:reveal', path),
   openExternal: (url) => ipcRenderer.invoke('shell:open', url),
   onZipProgress: (cb) => {

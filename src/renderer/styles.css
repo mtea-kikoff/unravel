@@ -248,6 +248,26 @@ input:focus { outline: 2px solid var(--thread); outline-offset: -1px; }
   white-space: nowrap;
 }
 .file .fsize { color: var(--muted); font-size: 12px; font-family: var(--mono); flex: none; }
+.file .peek {
+  flex: none;
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  padding: 0;
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  color: var(--muted);
+}
+.file .peek svg { width: 15px; height: 15px; }
+.file .peek:hover { border-color: var(--thread); color: var(--thread); }
+.file .peek.busy { color: var(--thread); animation: peek-pulse 0.9s ease-in-out infinite; }
+@keyframes peek-pulse { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) {
+  .file .peek.busy { animation: none; opacity: 0.5; }
+}
+
 .file .tag {
   flex: none;
   font-size: 10.5px;

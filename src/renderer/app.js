@@ -217,7 +217,7 @@ function renderThread() {
   box.innerHTML = '';
 
   // Attachments repeating an earlier one's name and size are almost always
-  // re-sends — leave them listed but unchecked.
+  // re-sends — show only the first copy.
   const seenFiles = new Set();
 
   for (const msg of currentThread.messages) {
@@ -242,14 +242,14 @@ function renderThread() {
 
     for (const att of msg.attachments) {
       const fileKey = `${att.filename}|${att.size}`;
-      const isDuplicate = seenFiles.has(fileKey);
+      if (seenFiles.has(fileKey)) continue;
       seenFiles.add(fileKey);
 
       const row = document.createElement('label');
       row.className = 'file';
       const check = document.createElement('input');
       check.type = 'checkbox';
-      check.checked = !att.inline && !isDuplicate;
+      check.checked = !att.inline;
       check.dataset.messageId = msg.id;
       check.dataset.attachmentId = att.attachmentId;
       check.dataset.filename = att.filename;
@@ -263,19 +263,39 @@ function renderThread() {
       size.className = 'fsize';
       size.textContent = fmtSize(att.size);
       row.append(check, name, size);
-      if (isDuplicate) {
-        const tag = document.createElement('span');
-        tag.className = 'tag';
-        tag.textContent = 'duplicate';
-        tag.title = 'Same name and size as an earlier attachment in this thread';
-        row.appendChild(tag);
-      } else if (att.inline) {
+      if (att.inline) {
         const tag = document.createElement('span');
         tag.className = 'tag';
         tag.textContent = 'inline';
         tag.title = 'Embedded in the message body (a signature image, usually)';
         row.appendChild(tag);
       }
+
+      const peek = document.createElement('button');
+      peek.type = 'button';
+      peek.className = 'peek';
+      peek.title = 'Preview';
+      peek.setAttribute('aria-label', `Preview ${att.filename}`);
+      peek.innerHTML =
+        '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.5c-3.2 0-5.6 2.7-6.6 4.1a.7.7 0 0 0 0 .8C2.4 9.8 4.8 12.5 8 12.5s5.6-2.7 6.6-4.1a.7.7 0 0 0 0-.8C13.6 6.2 11.2 3.5 8 3.5Z" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="8" r="2" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>';
+      peek.addEventListener('click', async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        if (peek.classList.contains('busy')) return;
+        peek.classList.add('busy');
+        try {
+          await unravel.preview({
+            messageId: msg.id,
+            attachmentId: att.attachmentId,
+            filename: att.filename,
+          });
+        } catch (err) {
+          toast(errMessage(err), { error: true });
+        } finally {
+          peek.classList.remove('busy');
+        }
+      });
+      row.appendChild(peek);
       div.appendChild(row);
     }
     box.appendChild(div);

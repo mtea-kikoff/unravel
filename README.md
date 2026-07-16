@@ -5,8 +5,8 @@ A macOS/Windows/Linux desktop app that downloads **every attachment in a Gmail t
 ## How it works
 
 1. Search your mail (Gmail query syntax, e.g. `from:brunner has:attachment`) or paste a thread link/ID.
-2. Unravel lists every attachment across the whole thread — every message, every file, with sizes. Inline images (signature logos etc.) are detected and unchecked by default.
-3. One click: everything is fetched in parallel and written to a zip wherever you choose. Duplicates are filtered twice over: attachments repeating an earlier one's name and size are tagged and unchecked up front, and at zip time files are SHA-256 content-hashed so byte-identical copies (re-attached files, repeated signature images) are written only once. Same name but *different* content is kept and renamed (`report.xlsx`, `report (2).xlsx`).
+2. Unravel lists every unique attachment across the whole thread with sizes — repeats of the same file (same name and size re-attached in replies) are hidden entirely, so you see one copy of everything. Inline images (signature logos etc.) are unchecked by default. An eye button on each file opens a native Quick Look preview so you can check what something is before downloading.
+3. One click: everything is fetched in parallel and written to a zip wherever you choose. As a backstop, files are SHA-256 content-hashed at zip time so byte-identical copies are written only once even when names differ; same name but *different* content is kept and renamed (`report.xlsx`, `report (2).xlsx`).
 
 Everything runs locally. Unravel talks to the Gmail API directly from your machine with a **read-only** scope (`gmail.readonly`) — it cannot send, modify, or delete mail, and nothing passes through a third-party server. OAuth tokens are encrypted with the OS keychain (Electron `safeStorage`).
 

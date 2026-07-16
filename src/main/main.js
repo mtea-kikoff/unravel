@@ -1,5 +1,7 @@
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
+const os = require('os');
+const fs = require('fs');
 const crypto = require('crypto');
 const AdmZip = require('adm-zip');
 const store = require('./store');
@@ -125,6 +127,26 @@ function registerIpc() {
     zip.writeZip(filePath);
     return { canceled: false, path: filePath, count: items.length - skipped, skipped, bytes };
   });
+
+  // Quick Look preview: fetch the attachment once into a temp cache, then
+  // hand it to the native preview panel (space-bar-in-Finder experience).
+  const PREVIEW_DIR = path.join(os.tmpdir(), 'unravel-previews');
+  ipcMain.handle('attachment:preview', async (_e, { messageId, attachmentId, filename }) => {
+    const key = crypto
+      .createHash('sha1')
+      .update(`${messageId}:${attachmentId}`)
+      .digest('hex')
+      .slice(0, 12);
+    const dir = path.join(PREVIEW_DIR, key);
+    const file = path.join(dir, sanitizeFilename(filename));
+    if (!fs.existsSync(file)) {
+      const buf = await gmail.fetchAttachment(messageId, attachmentId);
+      fs.mkdirSync(dir, { recursive: true });
+      fs.writeFileSync(file, buf);
+    }
+    win?.previewFile(file, filename);
+  });
+  app.on('will-quit', () => fs.rmSync(PREVIEW_DIR, { recursive: true, force: true }));
 
   ipcMain.handle('shell:reveal', (_e, p) => shell.showItemInFolder(p));
 
