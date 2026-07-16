@@ -1,5 +1,6 @@
 const { google } = require('googleapis');
 const auth = require('./auth');
+const links = require('./links');
 
 function gmail() {
   return google.gmail({ version: 'v1', auth: auth.getAuthedClient() });
@@ -134,6 +135,16 @@ async function searchThreads(query) {
   });
 }
 
+function collectBodies(part, out) {
+  if (!part) return;
+  if (!part.filename && part.body?.data) {
+    const text = Buffer.from(part.body.data, 'base64url').toString('utf8');
+    if (part.mimeType === 'text/html') out.html += text;
+    else if (part.mimeType === 'text/plain') out.text += text;
+  }
+  for (const child of part.parts || []) collectBodies(child, out);
+}
+
 function collectAttachments(part, found) {
   if (!part) return;
   if (part.filename && part.body?.attachmentId) {
@@ -166,13 +177,29 @@ async function getThread(input) {
   const messages = (res.data.messages || []).map((m) => {
     const attachments = [];
     collectAttachments(m.payload, attachments);
+    const bodies = { html: '', text: '' };
+    collectBodies(m.payload, bodies);
     return {
       id: m.id,
       from: header(m, 'From'),
       date: Number(m.internalDate) || null,
       attachments,
+      _links: links.findLinks(bodies.html, bodies.text),
     };
   });
+
+  // Resolve linked files (Drive/Dropbox/direct URLs) to real names and sizes.
+  // Quoted reply chains repeat the same links, so each link belongs to the
+  // first message it appears in.
+  const seenKeys = new Set();
+  await Promise.all(
+    messages.map(async (m) => {
+      const fresh = m._links.filter((l) => !seenKeys.has(l.key) && seenKeys.add(l.key));
+      delete m._links;
+      m.linkedFiles = await mapWithConcurrency(fresh, 4, links.resolve);
+    })
+  );
+
   const subject = messages.length
     ? header(res.data.messages[0], 'Subject') || '(no subject)'
     : '(no subject)';

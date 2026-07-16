@@ -242,7 +242,7 @@ function renderThread() {
     head.append(who, when);
     div.appendChild(head);
 
-    if (msg.attachments.length === 0) {
+    if (msg.attachments.length === 0 && !(msg.linkedFiles || []).length) {
       const none = document.createElement('p');
       none.className = 'none';
       none.textContent = 'No attachments';
@@ -253,59 +253,34 @@ function renderThread() {
       const fileKey = `${att.filename}|${att.size}`;
       if (seenFiles.has(fileKey)) continue;
       seenFiles.add(fileKey);
-
-      const row = document.createElement('label');
-      row.className = 'file';
-      const check = document.createElement('input');
-      check.type = 'checkbox';
-      check.checked = true;
-      check.dataset.messageId = msg.id;
-      check.dataset.attachmentId = att.attachmentId;
-      check.dataset.filename = att.filename;
-      check.dataset.size = att.size;
-      check.addEventListener('change', updateTally);
-      const name = document.createElement('span');
-      name.className = 'fname';
-      name.textContent = att.filename;
-      name.title = att.filename;
-      const size = document.createElement('span');
-      size.className = 'fsize';
-      size.textContent = fmtSize(att.size);
-      row.append(check, name, size);
-      if (att.inline) {
-        const tag = document.createElement('span');
-        tag.className = 'tag';
-        tag.textContent = 'inline';
-        tag.title = 'Embedded in the message body (a signature image, usually)';
-        row.appendChild(tag);
-      }
-
-      const peek = document.createElement('button');
-      peek.type = 'button';
-      peek.className = 'peek';
-      peek.title = 'Preview';
-      peek.setAttribute('aria-label', `Preview ${att.filename}`);
-      peek.innerHTML =
-        '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.5c-3.2 0-5.6 2.7-6.6 4.1a.7.7 0 0 0 0 .8C2.4 9.8 4.8 12.5 8 12.5s5.6-2.7 6.6-4.1a.7.7 0 0 0 0-.8C13.6 6.2 11.2 3.5 8 3.5Z" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="8" r="2" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>';
-      peek.addEventListener('click', async (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        if (peek.classList.contains('busy')) return;
-        peek.classList.add('busy');
-        try {
-          await unravel.preview({
+      div.appendChild(
+        fileRow({
+          item: {
+            kind: 'gmail',
             messageId: msg.id,
             attachmentId: att.attachmentId,
             filename: att.filename,
-          });
-        } catch (err) {
-          toast(errMessage(err), { error: true });
-        } finally {
-          peek.classList.remove('busy');
-        }
-      });
-      row.appendChild(peek);
-      div.appendChild(row);
+            size: att.size,
+          },
+          tag: att.inline
+            ? { text: 'inline', title: 'Embedded in the message body (a signature image, usually)' }
+            : null,
+        })
+      );
+    }
+
+    for (const lf of msg.linkedFiles || []) {
+      div.appendChild(
+        fileRow({
+          item: lf,
+          tag: {
+            text: { drive: 'Drive', dropbox: 'Dropbox', onedrive: 'OneDrive' }[lf.source] || 'link',
+            title: lf.downloadable
+              ? 'Linked in the message body — downloads into the zip like an attachment'
+              : lf.reason || "This link can't be downloaded directly.",
+          },
+        })
+      );
     }
     box.appendChild(div);
   }
@@ -313,13 +288,83 @@ function renderThread() {
   updateTally();
 }
 
+const EYE_SVG =
+  '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M8 3.5c-3.2 0-5.6 2.7-6.6 4.1a.7.7 0 0 0 0 .8C2.4 9.8 4.8 12.5 8 12.5s5.6-2.7 6.6-4.1a.7.7 0 0 0 0-.8C13.6 6.2 11.2 3.5 8 3.5Z" fill="none" stroke="currentColor" stroke-width="1.3"/><circle cx="8" cy="8" r="2" fill="none" stroke="currentColor" stroke-width="1.3"/></svg>';
+const ARROW_SVG =
+  '<svg viewBox="0 0 16 16" aria-hidden="true"><path d="M5 3.5h7.5V11M12.5 3.5 3.5 12.5" fill="none" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/></svg>';
+
+// One row for any file — a real attachment or a downloadable linked file
+// (both get a checkbox + Quick Look), or a non-downloadable link (opens in
+// the browser instead).
+function fileRow({ item, tag }) {
+  const downloadable = item.kind !== 'link' || item.downloadable;
+  const row = document.createElement(downloadable ? 'label' : 'div');
+  row.className = 'file';
+
+  if (downloadable) {
+    const check = document.createElement('input');
+    check.type = 'checkbox';
+    check.checked = true;
+    check.dataset.item = JSON.stringify(item);
+    check.addEventListener('change', updateTally);
+    row.appendChild(check);
+  }
+
+  const name = document.createElement('span');
+  name.className = 'fname';
+  name.textContent = item.filename;
+  name.title = item.kind === 'link' ? `${item.filename}\n${item.url}` : item.filename;
+  const size = document.createElement('span');
+  size.className = 'fsize';
+  size.textContent = fmtSize(item.size);
+  row.append(name, size);
+
+  if (tag) {
+    const el = document.createElement('span');
+    el.className = 'tag';
+    el.textContent = tag.text;
+    el.title = tag.title;
+    row.appendChild(el);
+  }
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'peek';
+  if (downloadable) {
+    btn.title = 'Preview';
+    btn.setAttribute('aria-label', `Preview ${item.filename}`);
+    btn.innerHTML = EYE_SVG;
+    btn.addEventListener('click', async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      if (btn.classList.contains('busy')) return;
+      btn.classList.add('busy');
+      try {
+        await unravel.preview(item);
+      } catch (err) {
+        toast(errMessage(err), { error: true });
+      } finally {
+        btn.classList.remove('busy');
+      }
+    });
+  } else {
+    btn.title = 'Open in browser';
+    btn.setAttribute('aria-label', `Open ${item.filename} in browser`);
+    btn.innerHTML = ARROW_SVG;
+    btn.addEventListener('click', (e) => {
+      e.preventDefault();
+      e.stopPropagation();
+      unravel.openLink(item.url).catch((err) => toast(errMessage(err), { error: true }));
+    });
+  }
+  row.appendChild(btn);
+  return row;
+}
+
 function selectedFiles() {
-  return [...document.querySelectorAll('#thread-messages input[type=checkbox]:checked')].map((c) => ({
-    messageId: c.dataset.messageId,
-    attachmentId: c.dataset.attachmentId,
-    filename: c.dataset.filename,
-    size: Number(c.dataset.size),
-  }));
+  return [...document.querySelectorAll('#thread-messages input[type=checkbox]:checked')].map((c) =>
+    JSON.parse(c.dataset.item)
+  );
 }
 
 function updateTally() {
@@ -336,7 +381,7 @@ function updateTally() {
   strong.textContent = `${files.length} of ${total} file${total === 1 ? '' : 's'}`;
   const sub = document.createElement('span');
   sub.className = 'sub';
-  sub.textContent = fmtSize(files.reduce((a, f) => a + f.size, 0));
+  sub.textContent = fmtSize(files.reduce((a, f) => a + (f.size || 0), 0));
   $('tally').append(strong, sub);
   $('btn-download').disabled = files.length === 0;
 }
@@ -364,10 +409,15 @@ $('btn-download').addEventListener('click', async () => {
   try {
     const result = await unravel.downloadZip({ subject: currentThread.subject, items });
     if (!result.canceled) {
-      const skipped = result.skipped
-        ? ` — skipped ${result.skipped} identical duplicate${result.skipped === 1 ? '' : 's'}`
-        : '';
-      toast(`Saved ${result.count} file${result.count === 1 ? '' : 's'} (${fmtSize(result.bytes)})${skipped}`, {
+      const extras = [];
+      if (result.skipped) {
+        extras.push(`skipped ${result.skipped} identical duplicate${result.skipped === 1 ? '' : 's'}`);
+      }
+      if (result.failed?.length) {
+        extras.push(`couldn't fetch ${result.failed.join(', ')}`);
+      }
+      const suffix = extras.length ? ` — ${extras.join('; ')}` : '';
+      toast(`Saved ${result.count} file${result.count === 1 ? '' : 's'} (${fmtSize(result.bytes)})${suffix}`, {
         action: { label: 'Show in Finder', onClick: () => unravel.reveal(result.path) },
       });
     }

@@ -4,7 +4,10 @@ const http = require('http');
 const crypto = require('crypto');
 const store = require('./store');
 
-const SCOPES = ['https://www.googleapis.com/auth/gmail.readonly'];
+const SCOPES = [
+  'https://www.googleapis.com/auth/gmail.readonly',
+  'https://www.googleapis.com/auth/drive.readonly',
+];
 const AUTH_TIMEOUT_MS = 5 * 60 * 1000;
 
 let cachedClient = null;

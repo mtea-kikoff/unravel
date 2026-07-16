@@ -11,6 +11,7 @@ contextBridge.exposeInMainWorld('unravel', {
   preview: (payload) => ipcRenderer.invoke('attachment:preview', payload),
   reveal: (path) => ipcRenderer.invoke('shell:reveal', path),
   openExternal: (url) => ipcRenderer.invoke('shell:open', url),
+  openLink: (url) => ipcRenderer.invoke('link:open', url),
   onZipProgress: (cb) => {
     const listener = (_e, data) => cb(data);
     ipcRenderer.on('zip:progress', listener);

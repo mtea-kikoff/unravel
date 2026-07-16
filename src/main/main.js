@@ -7,6 +7,16 @@ const AdmZip = require('adm-zip');
 const store = require('./store');
 const auth = require('./auth');
 const gmail = require('./gmail');
+const links = require('./links');
+
+function fetchItem(item) {
+  if (item.kind === 'link') return links.download(item);
+  return gmail.fetchAttachment(item.messageId, item.attachmentId);
+}
+
+function itemKey(item) {
+  return item.kind === 'link' ? item.key : `${item.messageId}:${item.attachmentId}`;
+}
 
 let win = null;
 
@@ -99,12 +109,19 @@ function registerIpc() {
     let bytes = 0;
 
     // Fetch in parallel but add to the zip in thread order so the archive
-    // reads top-to-bottom like the conversation did.
+    // reads top-to-bottom like the conversation did. A linked file that
+    // fails (revoked share, login wall) doesn't sink the rest of the zip.
+    const failed = [];
     const buffers = await mapWithConcurrency(items, 4, async (item) => {
-      const buf = await gmail.fetchAttachment(item.messageId, item.attachmentId);
-      done += 1;
-      win?.webContents.send('zip:progress', { done, total: items.length, filename: item.filename });
-      return buf;
+      try {
+        return await fetchItem(item);
+      } catch (err) {
+        failed.push(item.filename);
+        return null;
+      } finally {
+        done += 1;
+        win?.webContents.send('zip:progress', { done, total: items.length, filename: item.filename });
+      }
     });
 
     // Byte-identical files (re-attached in replies, repeated signature
@@ -113,6 +130,7 @@ function registerIpc() {
     const seenHashes = new Set();
     let skipped = 0;
     buffers.forEach((buf, i) => {
+      if (!buf) return;
       const hash = crypto.createHash('sha256').update(buf).digest('hex');
       if (seenHashes.has(hash)) {
         skipped += 1;
@@ -125,26 +143,29 @@ function registerIpc() {
     });
 
     zip.writeZip(filePath);
-    return { canceled: false, path: filePath, count: items.length - skipped, skipped, bytes };
+    return {
+      canceled: false,
+      path: filePath,
+      count: items.length - skipped - failed.length,
+      skipped,
+      failed,
+      bytes,
+    };
   });
 
   // Quick Look preview: fetch the attachment once into a temp cache, then
   // hand it to the native preview panel (space-bar-in-Finder experience).
   const PREVIEW_DIR = path.join(os.tmpdir(), 'unravel-previews');
-  ipcMain.handle('attachment:preview', async (_e, { messageId, attachmentId, filename }) => {
-    const key = crypto
-      .createHash('sha1')
-      .update(`${messageId}:${attachmentId}`)
-      .digest('hex')
-      .slice(0, 12);
+  ipcMain.handle('attachment:preview', async (_e, item) => {
+    const key = crypto.createHash('sha1').update(itemKey(item)).digest('hex').slice(0, 12);
     const dir = path.join(PREVIEW_DIR, key);
-    const file = path.join(dir, sanitizeFilename(filename));
+    const file = path.join(dir, sanitizeFilename(item.filename));
     if (!fs.existsSync(file)) {
-      const buf = await gmail.fetchAttachment(messageId, attachmentId);
+      const buf = await fetchItem(item);
       fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(file, buf);
     }
-    win?.previewFile(file, filename);
+    win?.previewFile(file, item.filename);
   });
   app.on('will-quit', () => fs.rmSync(PREVIEW_DIR, { recursive: true, force: true }));
 
@@ -155,6 +176,15 @@ function registerIpc() {
       return shell.openExternal(url);
     }
     throw new Error('Blocked external URL.');
+  });
+
+  // Linked files that can't be downloaded open in the browser instead.
+  ipcMain.handle('link:open', (_e, url) => {
+    const parsed = new URL(url);
+    if (parsed.protocol !== 'https:' && parsed.protocol !== 'http:') {
+      throw new Error('Blocked external URL.');
+    }
+    return shell.openExternal(parsed.toString());
   });
 }
 

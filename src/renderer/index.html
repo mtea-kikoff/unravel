@@ -32,7 +32,7 @@
         </p>
         <ol>
           <li>Open the <button class="link" data-open="https://console.cloud.google.com/apis/credentials">Google Cloud console</button> and create (or pick) a project.</li>
-          <li>Enable the <button class="link" data-open="https://console.cloud.google.com/apis/library/gmail.googleapis.com">Gmail API</button> for it.</li>
+          <li>Enable the <button class="link" data-open="https://console.cloud.google.com/apis/library/gmail.googleapis.com">Gmail API</button> and the <button class="link" data-open="https://console.cloud.google.com/apis/library/drive.googleapis.com">Google Drive API</button> (Drive powers downloading files people share as links).</li>
           <li>Configure the OAuth consent screen (External is fine — add your own address as a test user).</li>
           <li>Create an OAuth client ID with application type <strong>Desktop app</strong>, then paste both values here.</li>
         </ol>
@@ -52,7 +52,7 @@
     <section class="view" id="view-connect" hidden>
       <div class="card intro center">
         <h1>Connect Gmail</h1>
-        <p>Your browser will open so Google can confirm it's you. Unravel only asks for read-only access — it can't send, change, or delete anything.</p>
+        <p>Your browser will open so Google can confirm it's you. Unravel only asks for read-only access to Gmail and Drive — it can't send, change, or delete anything.</p>
         <button class="primary" id="btn-connect">Connect Gmail</button>
         <button class="link small" id="btn-edit-credentials">Edit API credentials</button>
       </div>
