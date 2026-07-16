@@ -197,6 +197,12 @@ input:focus { outline: 2px solid var(--thread); outline-offset: -1px; }
   margin: 0 0 20px;
 }
 
+.select-controls {
+  display: flex;
+  gap: 8px;
+  margin: -8px 0 16px;
+}
+
 .spine {
   position: relative;
   padding-left: 26px;

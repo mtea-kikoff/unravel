@@ -207,6 +207,15 @@ function closeThread() {
 
 $('btn-back').addEventListener('click', closeThread);
 
+function setAllChecked(checked) {
+  document
+    .querySelectorAll('#thread-messages input[type=checkbox]')
+    .forEach((c) => { c.checked = checked; });
+  updateTally();
+}
+$('btn-select-all').addEventListener('click', () => setAllChecked(true));
+$('btn-deselect-all').addEventListener('click', () => setAllChecked(false));
+
 function renderThread() {
   $('results').hidden = true;
   $('thread').hidden = false;
@@ -249,7 +258,7 @@ function renderThread() {
       row.className = 'file';
       const check = document.createElement('input');
       check.type = 'checkbox';
-      check.checked = !att.inline;
+      check.checked = true;
       check.dataset.messageId = msg.id;
       check.dataset.attachmentId = att.attachmentId;
       check.dataset.filename = att.filename;
