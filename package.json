@@ -6,7 +6,8 @@
   "main": "src/main/main.js",
   "scripts": {
     "start": "electron .",
-    "pack": "electron-packager . Unravel --platform=darwin --arch=arm64 --icon=build/icon --out=dist --overwrite"
+    "pack": "electron-packager . Unravel --platform=darwin --arch=arm64 --icon=build/icon --out=dist --overwrite",
+    "install:app": "npm run pack && rm -rf /Applications/Unravel.app && cp -R dist/Unravel-darwin-arm64/Unravel.app /Applications/ && rm -rf dist"
   },
   "author": "Michael Tea",
   "license": "MIT",

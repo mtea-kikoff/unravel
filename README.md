@@ -14,8 +14,8 @@ Everything runs locally. Unravel talks to the Gmail API directly from your machi
 
 ```bash
 npm install
-npm start        # run from source
-npm run pack     # build Unravel.app (macOS arm64) into dist/, then drag to /Applications
+npm start           # run from source
+npm run install:app # build Unravel.app and install it to /Applications (cleans up dist/ after)
 ```
 
 On first launch the app walks you through a one-time Google API setup (it needs its own OAuth credentials because it talks to Gmail directly):
