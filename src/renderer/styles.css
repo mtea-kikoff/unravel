@@ -1,0 +1,325 @@
+/* Unravel — paper & thread.
+   One crimson thread runs through the app; everything else stays quiet. */
+
+:root {
+  --paper: #f7f6f2;
+  --card: #ffffff;
+  --ink: #1f2126;
+  --muted: #6c6f76;
+  --line: #e4e2da;
+  --thread: #c0362c;
+  --thread-deep: #9e2b23;
+  --ok: #2e7d4f;
+  --display: "Avenir Next", "Avenir", -apple-system, "Segoe UI", sans-serif;
+  --body: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  --mono: "SF Mono", "Menlo", "Cascadia Code", monospace;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --paper: #17181c;
+    --card: #1f2126;
+    --ink: #eceae4;
+    --muted: #9a9da6;
+    --line: #2c2e34;
+    --thread: #e05c4f;
+    --thread-deep: #c0362c;
+    --ok: #5dbb87;
+  }
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: var(--body);
+  font-size: 14px;
+  color: var(--ink);
+  background: var(--paper);
+  height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+button { font: inherit; cursor: pointer; }
+:focus-visible { outline: 2px solid var(--thread); outline-offset: 2px; }
+
+/* ---------- titlebar ---------- */
+
+.titlebar {
+  -webkit-app-region: drag;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 14px 20px 12px 84px; /* room for macOS traffic lights */
+  border-bottom: 1px solid var(--line);
+  flex: none;
+}
+.titlebar button { -webkit-app-region: no-drag; }
+
+.wordmark {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 17px;
+  letter-spacing: 0.02em;
+}
+.knot { width: 22px; height: 22px; color: var(--thread); }
+
+.account { display: flex; align-items: center; gap: 10px; }
+.account-email { color: var(--muted); font-size: 12.5px; }
+
+/* ---------- layout ---------- */
+
+main {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+}
+.view { max-width: 640px; margin: 0 auto; }
+
+.card {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 28px 32px;
+}
+.card.center { text-align: center; }
+
+.intro h1 {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 24px;
+  margin: 0 0 10px;
+}
+.intro p { color: var(--muted); line-height: 1.55; margin: 0 0 14px; }
+.intro ol { margin: 0 0 22px; padding-left: 20px; line-height: 1.8; }
+
+/* ---------- controls ---------- */
+
+.primary {
+  background: var(--ink);
+  color: var(--paper);
+  border: none;
+  border-radius: 8px;
+  padding: 9px 18px;
+  font-weight: 600;
+}
+.primary:hover { background: var(--thread-deep); color: #fff; }
+.primary:disabled { opacity: 0.45; cursor: default; }
+.primary.big { padding: 12px 24px; font-size: 15px; }
+
+.ghost {
+  background: none;
+  border: 1px solid var(--line);
+  border-radius: 7px;
+  color: var(--muted);
+  padding: 4px 12px;
+  font-size: 12.5px;
+}
+.ghost:hover { border-color: var(--thread); color: var(--thread); }
+
+.link {
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--thread);
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+.link.small { display: inline-block; margin-top: 14px; font-size: 12.5px; color: var(--muted); }
+.link.back { margin-bottom: 14px; text-decoration: none; color: var(--muted); }
+.link.back:hover { color: var(--thread); }
+
+form#form-credentials { display: grid; gap: 14px; }
+form#form-credentials label {
+  display: grid;
+  gap: 5px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--muted);
+}
+input[type="text"], input[type="password"] {
+  font: 13px var(--mono);
+  color: var(--ink);
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 12px;
+}
+input:focus { outline: 2px solid var(--thread); outline-offset: -1px; }
+
+/* ---------- search ---------- */
+
+.searchbar { display: flex; gap: 10px; }
+.searchbar input { flex: 1; font-family: var(--body); font-size: 14px; }
+
+.hint { color: var(--muted); font-size: 12px; margin: 8px 2px 18px; }
+.hint code { font-family: var(--mono); font-size: 11.5px; background: var(--card); border: 1px solid var(--line); border-radius: 4px; padding: 1px 5px; }
+
+.status { color: var(--muted); padding: 20px 4px; }
+.status.error { color: var(--thread); }
+
+/* ---------- results ---------- */
+
+.result {
+  width: 100%;
+  text-align: left;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  display: block;
+}
+.result:hover { border-color: var(--thread); }
+.result .subject { font-weight: 600; margin-bottom: 3px; }
+.result .meta { color: var(--muted); font-size: 12px; display: flex; gap: 8px; flex-wrap: wrap; }
+.result .snippet {
+  color: var(--muted);
+  font-size: 12.5px;
+  margin-top: 6px;
+  overflow: hidden;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}
+
+/* ---------- thread view: the crimson spine ---------- */
+
+#thread h2 {
+  font-family: var(--display);
+  font-weight: 700;
+  font-size: 20px;
+  margin: 0 0 20px;
+}
+
+.spine {
+  position: relative;
+  padding-left: 26px;
+}
+.spine::before {
+  content: "";
+  position: absolute;
+  left: 7px;
+  top: 6px;
+  bottom: 6px;
+  width: 0;
+  border-left: 2px dashed var(--thread);
+  opacity: 0.85;
+}
+
+.message { position: relative; margin-bottom: 22px; }
+.message::before {
+  content: "";
+  position: absolute;
+  left: -25px;
+  top: 4px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--paper);
+  border: 2px solid var(--thread);
+}
+.message .who { font-weight: 600; }
+.message .when { color: var(--muted); font-size: 12px; margin-left: 8px; }
+.message .none { color: var(--muted); font-size: 12.5px; margin: 6px 0 0; font-style: italic; }
+
+.file {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 8px 12px;
+  margin-top: 8px;
+}
+.file input[type="checkbox"] { accent-color: var(--thread); width: 15px; height: 15px; flex: none; }
+.file .fname {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.file .fsize { color: var(--muted); font-size: 12px; font-family: var(--mono); flex: none; }
+.file .tag {
+  flex: none;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  border: 1px solid var(--line);
+  border-radius: 4px;
+  padding: 1px 5px;
+}
+
+/* ---------- action bar ---------- */
+
+.actionbar {
+  flex: none;
+  display: flex;
+  align-items: center;
+  gap: 18px;
+  padding: 14px 24px;
+  border-top: 1px solid var(--line);
+  background: var(--card);
+}
+.tally { font-weight: 600; flex: none; }
+.tally .sub { color: var(--muted); font-weight: 400; margin-left: 6px; }
+
+.progress { flex: 1; display: flex; align-items: center; gap: 12px; }
+.progress span { color: var(--muted); font-size: 12px; font-family: var(--mono); white-space: nowrap; }
+
+/* the thread literally winds onto the spool as files download */
+.thread-line {
+  flex: 1;
+  height: 4px;
+  border-radius: 2px;
+  background: var(--line);
+  overflow: hidden;
+}
+.thread-fill {
+  height: 100%;
+  width: 0%;
+  background: repeating-linear-gradient(
+    90deg,
+    var(--thread) 0 8px,
+    var(--thread-deep) 8px 12px
+  );
+  background-size: 24px 100%;
+  transition: width 0.25s ease;
+  animation: wind 0.8s linear infinite;
+}
+@keyframes wind { from { background-position: 0 0; } to { background-position: 24px 0; } }
+@media (prefers-reduced-motion: reduce) {
+  .thread-fill { animation: none; }
+}
+
+.actionbar > .primary { margin-left: auto; }
+
+/* ---------- toast ---------- */
+
+.toast {
+  position: fixed;
+  bottom: 84px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--ink);
+  color: var(--paper);
+  border-radius: 8px;
+  padding: 10px 16px;
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.25);
+  max-width: 80%;
+}
+.toast .link { color: inherit; font-weight: 600; }
+.toast.error { background: var(--thread-deep); color: #fff; }

@@ -1,0 +1,98 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self'; script-src 'self'; img-src 'self' data:" />
+  <title>Unravel</title>
+  <link rel="stylesheet" href="styles.css" />
+</head>
+<body>
+  <header class="titlebar">
+    <div class="wordmark">
+      <svg class="knot" viewBox="0 0 28 28" aria-hidden="true">
+        <path d="M4 22 C 10 22, 8 8, 14 8 S 18 20, 24 12" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"/>
+        <circle cx="4" cy="22" r="2.4" fill="currentColor"/>
+      </svg>
+      <span>Unravel</span>
+    </div>
+    <div class="account" id="account" hidden>
+      <span class="account-email" id="account-email"></span>
+      <button class="ghost" id="btn-disconnect" title="Disconnect Gmail">Disconnect</button>
+    </div>
+  </header>
+
+  <main>
+    <!-- Step 1: OAuth client credentials -->
+    <section class="view" id="view-setup" hidden>
+      <div class="card intro">
+        <h1>One-time setup</h1>
+        <p>
+          Unravel talks to Gmail directly from this Mac — nothing passes through anyone
+          else's server. That means it needs its own Google API credentials, created once:
+        </p>
+        <ol>
+          <li>Open the <button class="link" data-open="https://console.cloud.google.com/apis/credentials">Google Cloud console</button> and create (or pick) a project.</li>
+          <li>Enable the <button class="link" data-open="https://console.cloud.google.com/apis/library/gmail.googleapis.com">Gmail API</button> for it.</li>
+          <li>Configure the OAuth consent screen (External is fine — add your own address as a test user).</li>
+          <li>Create an OAuth client ID with application type <strong>Desktop app</strong>, then paste both values here.</li>
+        </ol>
+        <form id="form-credentials">
+          <label>Client ID
+            <input type="text" id="input-client-id" spellcheck="false" autocomplete="off" placeholder="1234…apps.googleusercontent.com" />
+          </label>
+          <label>Client secret
+            <input type="password" id="input-client-secret" spellcheck="false" autocomplete="off" placeholder="GOCSPX-…" />
+          </label>
+          <button type="submit" class="primary">Save credentials</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- Step 2: connect the account -->
+    <section class="view" id="view-connect" hidden>
+      <div class="card intro center">
+        <h1>Connect Gmail</h1>
+        <p>Your browser will open so Google can confirm it's you. Unravel only asks for read-only access — it can't send, change, or delete anything.</p>
+        <button class="primary" id="btn-connect">Connect Gmail</button>
+        <button class="link small" id="btn-edit-credentials">Edit API credentials</button>
+      </div>
+    </section>
+
+    <!-- Main: find a thread, pull its files -->
+    <section class="view" id="view-main" hidden>
+      <form class="searchbar" id="form-search">
+        <input type="text" id="input-search" spellcheck="false"
+          placeholder="Search your mail, or paste a thread link…" />
+        <button type="submit" class="primary" id="btn-search">Find</button>
+      </form>
+      <p class="hint">Searches use Gmail syntax — try <code>from:brunner has:attachment</code>. Empty search shows recent threads with attachments.</p>
+
+      <div id="status-line" class="status" hidden></div>
+
+      <div id="results" hidden></div>
+
+      <div id="thread" hidden>
+        <button class="link back" id="btn-back">&larr; Back to results</button>
+        <h2 id="thread-subject"></h2>
+        <div class="spine" id="thread-messages"></div>
+      </div>
+    </section>
+  </main>
+
+  <footer class="actionbar" id="actionbar" hidden>
+    <div class="tally" id="tally"></div>
+    <div class="progress" id="progress" hidden>
+      <div class="thread-line"><div class="thread-fill" id="progress-fill"></div></div>
+      <span id="progress-label"></span>
+    </div>
+    <button class="primary big" id="btn-download">Download .zip</button>
+  </footer>
+
+  <div class="toast" id="toast" hidden>
+    <span id="toast-text"></span>
+    <button class="link" id="toast-action" hidden></button>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
