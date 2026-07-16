@@ -67,9 +67,36 @@ function classify(url) {
     return { kind: 'link', source: 'dropbox', url, key: `url:${u.origin}${u.pathname}` };
   }
 
-  if (/1drv\.ms\/|\.sharepoint\.com\//i.test(url)) {
-    if (!DIRECT_EXT_RE.test(u.pathname) && !/1drv\.ms/.test(u.hostname)) return null;
-    return { kind: 'link', source: 'onedrive', url, key: `url:${u.origin}${u.pathname}` };
+  // Modern SharePoint/OneDrive share links carry the file type as a path
+  // prefix (/:p:/ = PowerPoint, /:w:/ = Word, …) instead of an extension.
+  const SP_TYPES = {
+    p: 'PowerPoint presentation',
+    w: 'Word document',
+    x: 'Excel workbook',
+    b: 'PDF',
+    v: 'video',
+    i: 'image',
+    o: 'OneNote notebook',
+    u: 'file',
+    t: 'file',
+    f: 'folder',
+  };
+  if (/(^|\.)1drv\.ms$/i.test(u.hostname) || /\.sharepoint\.com$/i.test(u.hostname)) {
+    const share = u.pathname.match(/^\/:([a-z]):\//i);
+    const docish =
+      share ||
+      /(^|\.)1drv\.ms$/i.test(u.hostname) ||
+      DIRECT_EXT_RE.test(u.pathname) ||
+      /(guestaccess|download|doc)\.aspx/i.test(u.pathname) ||
+      u.searchParams.has('sourcedoc');
+    if (!docish) return null;
+    return {
+      kind: 'link',
+      source: 'onedrive',
+      url,
+      key: `url:${u.origin}${u.pathname}`,
+      typeHint: share ? SP_TYPES[share[1].toLowerCase()] || 'file' : null,
+    };
   }
 
   if (DIRECT_EXT_RE.test(u.pathname)) {
@@ -129,6 +156,12 @@ function dropboxDirectUrl(url) {
   return u.toString();
 }
 
+function onedriveDirectUrl(url) {
+  const u = new URL(url);
+  u.searchParams.set('download', '1');
+  return u.toString();
+}
+
 function filenameFromDisposition(res) {
   const cd = res.headers.get('content-disposition') || '';
   const star = cd.match(/filename\*=(?:UTF-8'')?([^;]+)/i);
@@ -178,8 +211,12 @@ async function resolveDrive(link) {
 }
 
 async function resolveHttp(link) {
-  const fetchUrl = link.source === 'dropbox' ? dropboxDirectUrl(link.url) : link.url;
-  const fallbackName = nameFromUrl(link.url);
+  let fetchUrl = link.url;
+  if (link.source === 'dropbox') fetchUrl = dropboxDirectUrl(link.url);
+  if (link.source === 'onedrive') fetchUrl = onedriveDirectUrl(link.url);
+  const fallbackName = link.typeHint
+    ? `SharePoint ${link.typeHint}`
+    : nameFromUrl(link.url);
   try {
     const res = await headRequest(fetchUrl);
     const type = (res.headers.get('content-type') || '').toLowerCase();
