@@ -132,7 +132,12 @@ $('form-search').addEventListener('submit', async (e) => {
   closeThread();
 
   // A pasted link or ID opens the thread directly.
-  if (q.includes('mail.google.com') || /^[0-9a-f]{12,20}$/i.test(q) || q.includes('thread-f:')) {
+  if (
+    q.includes('mail.google.com') ||
+    /^[0-9a-f]{12,20}$/i.test(q) ||
+    q.includes('thread-f:') ||
+    /^[BCDFGHJKLMNPQRSTVWXZbcdfghjklmnpqrstvwxz]{32,}$/.test(q)
+  ) {
     return openThread(q);
   }
 

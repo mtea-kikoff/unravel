@@ -11,9 +11,56 @@ function header(message, name) {
   return hit ? hit.value : '';
 }
 
-// Accepts a bare hex thread id, a "thread-f:12345" id, or a Gmail URL whose
-// last segment is a legacy hex id. New-style Gmail URL tokens (FMfcg…) are a
-// proprietary encoding the API can't look up — steer those users to search.
+// --- New-style Gmail URL tokens (FMfcgz…) ---
+// The token is a big number written in base 40 (a consonant-only alphabet).
+// Re-expressed in base 64 it becomes base64 text that decodes to
+// "thread-f:<decimal>" (or bare "f:<decimal>"), and that decimal is the
+// legacy hex id the Gmail API accepts. Reverse-engineered by Arsenal Recon:
+// https://github.com/ArsenalRecon/GmailURLDecoder
+const TOKEN_ALPHABET = 'BCDFGHJKLMNPQRSTVWXZbcdfghjklmnpqrstvwxz';
+const B64_ALPHABET = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+
+function decodeNewToken(token) {
+  let n = 0n;
+  for (const ch of token) {
+    const d = TOKEN_ALPHABET.indexOf(ch);
+    if (d === -1) return null;
+    n = n * 40n + BigInt(d);
+  }
+  let b64 = '';
+  while (n > 0n) {
+    b64 = B64_ALPHABET[Number(n % 64n)] + b64;
+    n /= 64n;
+  }
+  try {
+    return Buffer.from(b64 + '='.repeat((4 - (b64.length % 4)) % 4), 'base64').toString('utf8');
+  } catch {
+    return null;
+  }
+}
+
+function newTokenToHexId(token) {
+  // A copied URL can drag extra characters along; trim from the right until
+  // the token decodes (Arsenal Recon's correction step). 32 is the minimum
+  // token length.
+  for (let t = token; t.length >= 32; t = t.slice(0, -1)) {
+    const text = decodeNewToken(t);
+    if (!text) continue;
+    const f = text.match(/f:(\d+)\s*$/);
+    if (f) return BigInt(f[1]).toString(16);
+    if (/a:/.test(text)) {
+      throw new Error(
+        'This link points to a thread only you have sent mail in ("thread-a"), which Gmail gives a private id with no API equivalent. Search for the thread instead.'
+      );
+    }
+  }
+  return null;
+}
+
+const NEW_TOKEN_RE = /^[BCDFGHJKLMNPQRSTVWXZbcdfghjklmnpqrstvwxz]{32,}$/;
+
+// Accepts a Gmail URL (both legacy hex and new FMfcgz… formats), a bare hex
+// thread id, a bare new-format token, or a "thread-f:12345" id.
 function parseThreadInput(input) {
   const s = String(input || '').trim();
   if (!s) throw new Error('Paste a thread link or ID, or search your mail below.');
@@ -23,12 +70,19 @@ function parseThreadInput(input) {
   const legacy = s.match(/thread-f:(\d+)/);
   if (legacy) return BigInt(legacy[1]).toString(16);
 
+  if (NEW_TOKEN_RE.test(s)) {
+    const hex = newTokenToHexId(s);
+    if (hex) return hex;
+  }
+
   if (s.includes('mail.google.com')) {
-    const tail = s.split(/[/#]/).filter(Boolean).pop() || '';
+    const tail = (s.split('?')[0] || '').split(/[/#]/).filter(Boolean).pop() || '';
     if (/^[0-9a-fA-F]{12,20}$/.test(tail)) return tail.toLowerCase();
-    throw new Error(
-      "This Gmail link uses Google's new URL format, which can't be looked up directly. Search for the thread below instead."
-    );
+    if (NEW_TOKEN_RE.test(tail)) {
+      const hex = newTokenToHexId(tail);
+      if (hex) return hex;
+    }
+    throw new Error("Couldn't read a thread id out of that Gmail link. Try searching instead.");
   }
 
   throw new Error("That doesn't look like a Gmail thread link or ID. Try searching instead.");
@@ -97,8 +151,18 @@ function collectAttachments(part, found) {
 }
 
 async function getThread(input) {
-  const id = parseThreadInput(input);
-  const res = await gmail().users.threads.get({ userId: 'me', id, format: 'full' });
+  let id = parseThreadInput(input);
+  let res;
+  try {
+    res = await gmail().users.threads.get({ userId: 'me', id, format: 'full' });
+  } catch (err) {
+    // The id may be a message id (links to a reply mid-thread) — resolve it
+    // to its thread.
+    if (err?.code !== 404 && err?.response?.status !== 404) throw err;
+    const msg = await gmail().users.messages.get({ userId: 'me', id, format: 'minimal' });
+    id = msg.data.threadId;
+    res = await gmail().users.threads.get({ userId: 'me', id, format: 'full' });
+  }
   const messages = (res.data.messages || []).map((m) => {
     const attachments = [];
     collectAttachments(m.payload, attachments);

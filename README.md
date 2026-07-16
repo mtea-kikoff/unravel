@@ -28,7 +28,7 @@ On first launch the app walks you through a one-time Google API setup (it needs 
 
 ## Notes & limitations
 
-- **New-style Gmail URLs** (`…/#inbox/FMfcgz…`) use a proprietary token the Gmail API can't look up, so they can't be pasted directly — use in-app search instead, which is usually faster anyway. Legacy hex thread IDs and `thread-f:…` IDs paste fine.
+- **Any Gmail thread URL can be pasted directly**, including new-style links (`…/#inbox/FMfcgz…` or `…/#search/…/FMfcgz…`). Those tokens are decoded locally (base-40 → base-64 scheme reverse-engineered by [Arsenal Recon](https://github.com/ArsenalRecon/GmailURLDecoder)) into the legacy hex id the API accepts. The one exception is `thread-a` tokens — threads where every message was sent by you — which have no API-resolvable id; use search for those.
 - Attachments are held in memory while zipping, so multi-gigabyte threads may be slow.
 - The zip preserves the thread's chronological order in its file listing.
 
