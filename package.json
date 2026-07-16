@@ -5,11 +5,13 @@
   "description": "Download every attachment from a Gmail thread as one zip.",
   "main": "src/main/main.js",
   "scripts": {
-    "start": "electron ."
+    "start": "electron .",
+    "pack": "electron-packager . Unravel --platform=darwin --arch=arm64 --icon=build/icon --out=dist --overwrite"
   },
   "author": "Michael Tea",
   "license": "MIT",
   "devDependencies": {
+    "@electron/packager": "^20.0.3",
     "electron": "^33.0.0"
   },
   "dependencies": {

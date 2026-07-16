@@ -1,0 +1,25 @@
+<svg width="1024" height="1024" viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <clipPath id="squircle">
+      <rect x="100" y="100" width="824" height="824" rx="185"/>
+    </clipPath>
+    <linearGradient id="paper" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0" stop-color="#FBFAF7"/>
+      <stop offset="1" stop-color="#EFEDE6"/>
+    </linearGradient>
+  </defs>
+  <g clip-path="url(#squircle)">
+    <rect x="100" y="100" width="824" height="824" fill="url(#paper)"/>
+    <!-- faint stitch guide -->
+    <path d="M 180 700 H 844" stroke="#E4E2DA" stroke-width="8" stroke-dasharray="2 40" stroke-linecap="round"/>
+    <!-- the unraveling knot: tangled at left, running straight at right -->
+    <path d="M 210 640
+             C 300 640, 260 330, 400 330
+             C 520 330, 430 620, 540 620
+             C 630 620, 590 400, 680 400
+             L 830 400"
+          fill="none" stroke="#C0362C" stroke-width="52" stroke-linecap="round"/>
+    <!-- thread end dot -->
+    <circle cx="210" cy="640" r="42" fill="#9E2B23"/>
+  </g>
+</svg>
