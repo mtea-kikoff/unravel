@@ -1,5 +1,6 @@
 const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
 const path = require('path');
+const crypto = require('crypto');
 const AdmZip = require('adm-zip');
 const store = require('./store');
 const auth = require('./auth');
@@ -104,14 +105,25 @@ function registerIpc() {
       return buf;
     });
 
+    // Byte-identical files (re-attached in replies, repeated signature
+    // images) are zipped once; only genuinely different content gets the
+    // "name (2).ext" treatment.
+    const seenHashes = new Set();
+    let skipped = 0;
     buffers.forEach((buf, i) => {
+      const hash = crypto.createHash('sha256').update(buf).digest('hex');
+      if (seenHashes.has(hash)) {
+        skipped += 1;
+        return;
+      }
+      seenHashes.add(hash);
       const name = dedupeName(sanitizeFilename(items[i].filename), taken);
       zip.addFile(name, buf);
       bytes += buf.length;
     });
 
     zip.writeZip(filePath);
-    return { canceled: false, path: filePath, count: items.length, bytes };
+    return { canceled: false, path: filePath, count: items.length - skipped, skipped, bytes };
   });
 
   ipcMain.handle('shell:reveal', (_e, p) => shell.showItemInFolder(p));

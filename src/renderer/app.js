@@ -216,6 +216,10 @@ function renderThread() {
   const box = $('thread-messages');
   box.innerHTML = '';
 
+  // Attachments repeating an earlier one's name and size are almost always
+  // re-sends — leave them listed but unchecked.
+  const seenFiles = new Set();
+
   for (const msg of currentThread.messages) {
     const div = document.createElement('div');
     div.className = 'message';
@@ -237,11 +241,15 @@ function renderThread() {
     }
 
     for (const att of msg.attachments) {
+      const fileKey = `${att.filename}|${att.size}`;
+      const isDuplicate = seenFiles.has(fileKey);
+      seenFiles.add(fileKey);
+
       const row = document.createElement('label');
       row.className = 'file';
       const check = document.createElement('input');
       check.type = 'checkbox';
-      check.checked = !att.inline;
+      check.checked = !att.inline && !isDuplicate;
       check.dataset.messageId = msg.id;
       check.dataset.attachmentId = att.attachmentId;
       check.dataset.filename = att.filename;
@@ -255,7 +263,13 @@ function renderThread() {
       size.className = 'fsize';
       size.textContent = fmtSize(att.size);
       row.append(check, name, size);
-      if (att.inline) {
+      if (isDuplicate) {
+        const tag = document.createElement('span');
+        tag.className = 'tag';
+        tag.textContent = 'duplicate';
+        tag.title = 'Same name and size as an earlier attachment in this thread';
+        row.appendChild(tag);
+      } else if (att.inline) {
         const tag = document.createElement('span');
         tag.className = 'tag';
         tag.textContent = 'inline';
@@ -321,7 +335,10 @@ $('btn-download').addEventListener('click', async () => {
   try {
     const result = await unravel.downloadZip({ subject: currentThread.subject, items });
     if (!result.canceled) {
-      toast(`Saved ${result.count} file${result.count === 1 ? '' : 's'} (${fmtSize(result.bytes)})`, {
+      const skipped = result.skipped
+        ? ` — skipped ${result.skipped} identical duplicate${result.skipped === 1 ? '' : 's'}`
+        : '';
+      toast(`Saved ${result.count} file${result.count === 1 ? '' : 's'} (${fmtSize(result.bytes)})${skipped}`, {
         action: { label: 'Show in Finder', onClick: () => unravel.reveal(result.path) },
       });
     }
