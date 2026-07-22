@@ -3,3 +3,6 @@ dist/
 out/
 .DS_Store
 *.log
+
+# Shared OAuth client baked into distributed builds — never commit the secret.
+default-credentials.json

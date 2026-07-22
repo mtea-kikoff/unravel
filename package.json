@@ -7,7 +7,8 @@
   "scripts": {
     "start": "electron .",
     "pack": "electron-packager . Unravel --platform=darwin --arch=arm64 --icon=build/icon --out=dist --overwrite",
-    "install:app": "npm run pack && rm -rf /Applications/Unravel.app && cp -R dist/Unravel-darwin-arm64/Unravel.app /Applications/ && rm -rf dist"
+    "install:app": "npm run pack && rm -rf /Applications/Unravel.app && cp -R dist/Unravel-darwin-arm64/Unravel.app /Applications/ && rm -rf dist",
+    "dist": "npm run pack && chmod +x build/make-dmg.sh && ./build/make-dmg.sh"
   },
   "author": "Michael Tea",
   "license": "MIT",

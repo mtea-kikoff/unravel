@@ -1,6 +1,7 @@
 const { app, safeStorage } = require('electron');
 const fs = require('fs');
 const path = require('path');
+const { bundledCredentials } = require('./credentials');
 
 function file(name) {
   return path.join(app.getPath('userData'), name);
@@ -22,6 +23,17 @@ function saveSettings(patch) {
   const next = { ...getSettings(), ...patch };
   fs.writeFileSync(file('settings.json'), JSON.stringify(next, null, 2));
   return next;
+}
+
+// Effective OAuth credentials: a user's own pasted client always wins;
+// otherwise the shared client baked into the build (if any).
+function getCredentials() {
+  const s = getSettings();
+  if (s.clientId && s.clientSecret) {
+    return { clientId: s.clientId, clientSecret: s.clientSecret, source: 'user' };
+  }
+  const bundled = bundledCredentials();
+  return bundled ? { ...bundled, source: 'bundled' } : null;
 }
 
 // Tokens are encrypted with the OS keychain when available (tokens.bin),
@@ -55,4 +67,11 @@ function clearTokens() {
   fs.rmSync(PLAIN(), { force: true });
 }
 
-module.exports = { getSettings, saveSettings, saveTokens, loadTokens, clearTokens };
+module.exports = {
+  getSettings,
+  saveSettings,
+  getCredentials,
+  saveTokens,
+  loadTokens,
+  clearTokens,
+};

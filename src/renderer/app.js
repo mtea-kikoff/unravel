@@ -65,6 +65,8 @@ function errMessage(err) {
 async function boot() {
   const state = await unravel.getState();
   $('account').hidden = !state.connected;
+  // With a shared client baked in, coworkers never touch OAuth setup.
+  $('btn-edit-credentials').hidden = state.managedCredentials;
   if (state.connected) {
     $('account-email').textContent = state.email || '';
     show('main');

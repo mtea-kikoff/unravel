@@ -18,6 +18,7 @@ Everything runs locally. Unravel talks to the Gmail and Drive APIs directly from
 npm install
 npm start           # run from source
 npm run install:app # build Unravel.app and install it to /Applications (cleans up dist/ after)
+npm run dist        # build a distributable dist/Unravel.dmg (see "Distributing to coworkers")
 ```
 
 On first launch the app walks you through a one-time Google API setup (it needs its own OAuth credentials because it talks to Gmail directly):
@@ -27,6 +28,30 @@ On first launch the app walks you through a one-time Google API setup (it needs 
 3. Configure the OAuth consent screen (External is fine; add your own address as a test user while the app is unverified).
 4. Create an OAuth client ID of type **Desktop app** and paste the client ID + secret into Unravel.
 5. Click **Connect Gmail** — your browser opens for Google sign-in, then you're in.
+
+## Distributing to coworkers
+
+You can build a signed-free `.dmg` and hand it to teammates so they install with a drag and connect with a single click — no Google Cloud setup on their end. This works by baking **one shared OAuth client** into the build, scoped to your Google Workspace org.
+
+### One-time: create the shared OAuth client (org admin / you)
+
+1. In the [Google Cloud console](https://console.cloud.google.com), create a project **owned by your Workspace org** (e.g. under kikoff.com), not a personal account.
+2. Enable the [Gmail API](https://console.cloud.google.com/apis/library/gmail.googleapis.com) and [Google Drive API](https://console.cloud.google.com/apis/library/drive.googleapis.com).
+3. OAuth consent screen → **User type: Internal**. This is the key step: Internal means any @yourcompany.com user can connect with no verification review and without being added as a test user. (Internal is only offered when the project is inside a Workspace org.)
+4. Credentials → Create credentials → **OAuth client ID** → type **Desktop app**.
+5. Copy `default-credentials.example.json` to `default-credentials.json` and paste in the client ID and secret. This file is gitignored (never committed) and gets bundled into the build.
+
+> The client secret for a Desktop-type OAuth client is not confidential — Google's own docs treat it as non-secret because it ships inside distributed apps. Internal scoping, not the secret, is what limits access to your org.
+
+### Build and send
+
+```bash
+npm run dist        # produces dist/Unravel.dmg with the shared client baked in
+```
+
+Send `dist/Unravel.dmg` (Slack, Drive, email). Coworkers open it, drag Unravel to Applications, and follow the included **Read Me First** for the one-time Gatekeeper step (the app is unsigned, so first launch is System Settings → Privacy & Security → *Open Anyway*). Then they click **Connect Gmail** and they're done — the setup screen never appears.
+
+To make first launch warning-free instead, get an Apple Developer ID ($99/yr) and add code-signing + notarization to the packaging step.
 
 ## Notes & limitations
 

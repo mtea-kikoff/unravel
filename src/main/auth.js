@@ -13,25 +13,27 @@ const AUTH_TIMEOUT_MS = 5 * 60 * 1000;
 let cachedClient = null;
 
 function hasCredentials() {
-  const s = store.getSettings();
-  return Boolean(s.clientId && s.clientSecret);
+  return Boolean(store.getCredentials());
 }
 
 function status() {
   const s = store.getSettings();
+  const creds = store.getCredentials();
   return {
-    hasCredentials: hasCredentials(),
+    hasCredentials: Boolean(creds),
+    // A build with a shared client baked in hides the per-user setup screen.
+    managedCredentials: creds?.source === 'bundled',
     connected: Boolean(store.loadTokens()),
     email: s.email || null,
   };
 }
 
 function buildClient(redirectUri) {
-  const s = store.getSettings();
-  if (!s.clientId || !s.clientSecret) {
+  const creds = store.getCredentials();
+  if (!creds) {
     throw new Error('Add your Google OAuth client ID and secret first.');
   }
-  const client = new google.auth.OAuth2(s.clientId, s.clientSecret, redirectUri);
+  const client = new google.auth.OAuth2(creds.clientId, creds.clientSecret, redirectUri);
   client.on('tokens', (tokens) => {
     const prev = store.loadTokens() || {};
     store.saveTokens({ ...prev, ...tokens });
