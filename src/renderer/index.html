@@ -65,7 +65,21 @@
           placeholder="Search your mail, or paste a thread link…" />
         <button type="submit" class="primary" id="btn-search">Find</button>
       </form>
-      <p class="hint">Searches use Gmail syntax — try <code>from:brunner has:attachment</code>. Paste a thread link to open it, or several links (space- or newline-separated) to consolidate multiple PRs' review changes into one brief.</p>
+      <p class="hint">Searches use Gmail syntax — try <code>from:brunner has:attachment</code>. Paste a thread link to open it.</p>
+
+      <button type="button" class="link consolidate-open" id="btn-consolidate-open">+ Consolidate reviews from multiple PRs</button>
+
+      <div class="consolidate" id="consolidate" hidden>
+        <div class="consolidate-head">
+          <span>Consolidate PR reviews — one link per box</span>
+          <button type="button" class="link" id="btn-consolidate-close">Close</button>
+        </div>
+        <div id="link-rows"></div>
+        <div class="consolidate-actions">
+          <button type="button" class="ghost" id="btn-add-row">+ Add another link</button>
+          <button type="button" class="primary" id="btn-consolidate-go">Extract &amp; consolidate</button>
+        </div>
+      </div>
 
       <div id="status-line" class="status" hidden></div>
 

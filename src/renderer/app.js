@@ -132,6 +132,7 @@ $('form-search').addEventListener('submit', async (e) => {
   if (busy) return;
   const q = $('input-search').value.trim();
   closeThread();
+  closeConsolidate();
 
   // One or more pasted links/IDs (whitespace-, comma-, or newline-separated).
   const links = extractLinkTokens(q);
@@ -238,6 +239,77 @@ function isLinkLike(s) {
 function extractLinkTokens(q) {
   return q.split(/[\s,]+/).map((s) => s.trim()).filter((s) => s && isLinkLike(s));
 }
+
+// ---- multi-link consolidation panel (one link per box) ----
+
+const linkInputs = () => [...document.querySelectorAll('#link-rows .link-input')];
+
+function addLinkRow(value = '') {
+  const row = document.createElement('div');
+  row.className = 'link-row';
+  const input = document.createElement('input');
+  input.type = 'text';
+  input.className = 'link-input';
+  input.spellcheck = false;
+  input.placeholder = 'Paste a PR thread link…';
+  input.value = value;
+  input.addEventListener('keydown', (e) => {
+    if (e.key !== 'Enter') return;
+    e.preventDefault();
+    const rows = linkInputs();
+    // Enter on the last filled box adds another; otherwise submit.
+    if (input === rows[rows.length - 1] && input.value.trim()) addLinkRow();
+    else $('btn-consolidate-go').click();
+  });
+  const rm = document.createElement('button');
+  rm.type = 'button';
+  rm.className = 'row-remove';
+  rm.textContent = '×';
+  rm.title = 'Remove this link';
+  rm.addEventListener('click', () => {
+    if (linkInputs().length > 1) row.remove();
+    else input.value = '';
+    input.focus();
+  });
+  row.append(input, rm);
+  $('link-rows').appendChild(row);
+  input.focus();
+  return input;
+}
+
+function openConsolidate() {
+  $('consolidate').hidden = false;
+  $('btn-consolidate-open').hidden = true;
+  if (linkInputs().length < 2) {
+    while (linkInputs().length < 2) addLinkRow();
+  }
+  linkInputs()[0].focus();
+}
+
+function closeConsolidate() {
+  $('consolidate').hidden = true;
+  $('btn-consolidate-open').hidden = false;
+}
+
+$('btn-consolidate-open').addEventListener('click', openConsolidate);
+$('btn-consolidate-close').addEventListener('click', closeConsolidate);
+$('btn-add-row').addEventListener('click', () => addLinkRow());
+
+$('btn-consolidate-go').addEventListener('click', () => {
+  if (busy) return;
+  const links = linkInputs()
+    .map((i) => i.value.trim())
+    .filter(Boolean)
+    .flatMap(extractLinkTokens);
+  if (!links.length) {
+    toast('Paste at least one PR thread link.', { error: true });
+    return;
+  }
+  closeThread();
+  closeConsolidate();
+  if (links.length === 1) openThread(links[0]);
+  else openReviews(links);
+});
 
 // Extract and consolidate several PR threads at once.
 async function openReviews(links) {
