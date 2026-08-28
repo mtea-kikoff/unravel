@@ -92,6 +92,10 @@ function registerIpc() {
   ipcMain.handle('gmail:search', (_e, query) => gmail.searchThreads(query));
   ipcMain.handle('gmail:thread', (_e, input) => gmail.getThread(input));
   ipcMain.handle('review:extract', (_e, input) => gmail.getReview(input));
+  ipcMain.handle('review:extractMulti', (_e, inputs) => gmail.getReviews(inputs));
+  ipcMain.handle('review:renderMulti', (_e, payload) =>
+    require('./review').renderMultiMarkdown(payload)
+  );
 
   // Re-render markdown from a chosen subset of findings (the user can
   // deselect superseded/irrelevant ones before exporting).

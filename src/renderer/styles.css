@@ -232,6 +232,18 @@ input:focus { outline: 2px solid var(--thread); outline-offset: -1px; }
   line-height: 1.5;
 }
 
+.review-pr {
+  font-family: var(--display);
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--ink);
+  margin: 24px 0 4px;
+  padding: 6px 10px;
+  background: var(--card);
+  border-left: 3px solid var(--thread);
+  border-radius: 0 6px 6px 0;
+}
+
 .review-file {
   font-family: var(--mono);
   font-size: 12.5px;

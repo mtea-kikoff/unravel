@@ -133,14 +133,13 @@ $('form-search').addEventListener('submit', async (e) => {
   const q = $('input-search').value.trim();
   closeThread();
 
-  // A pasted link or ID opens the thread directly.
-  if (
-    q.includes('mail.google.com') ||
-    /^[0-9a-f]{12,20}$/i.test(q) ||
-    q.includes('thread-f:') ||
-    /^[BCDFGHJKLMNPQRSTVWXZbcdfghjklmnpqrstvwxz]{32,}$/.test(q)
-  ) {
-    return openThread(q);
+  // One or more pasted links/IDs (whitespace-, comma-, or newline-separated).
+  const links = extractLinkTokens(q);
+  if (links.length >= 2) {
+    return openReviews(links);
+  }
+  if (links.length === 1) {
+    return openThread(links[0]);
   }
 
   busy = true;
@@ -225,6 +224,38 @@ $('btn-deselect-all').addEventListener('click', () => setAllChecked(false));
 
 let currentReview = null;
 
+function isLinkLike(s) {
+  return (
+    s.includes('mail.google.com') ||
+    /^[0-9a-f]{12,20}$/i.test(s) ||
+    s.includes('thread-f:') ||
+    /^[BCDFGHJKLMNPQRSTVWXZbcdfghjklmnpqrstvwxz]{32,}$/.test(s)
+  );
+}
+
+// Pull the link/ID tokens out of an input that may hold several, separated by
+// whitespace, newlines, or commas.
+function extractLinkTokens(q) {
+  return q.split(/[\s,]+/).map((s) => s.trim()).filter((s) => s && isLinkLike(s));
+}
+
+// Extract and consolidate several PR threads at once.
+async function openReviews(links) {
+  if (busy) return;
+  busy = true;
+  setStatus(`Reading ${links.length} threads…`);
+  try {
+    currentReview = await unravel.extractReviews(links);
+    currentReview.multi = true;
+    setStatus('');
+    renderReview();
+  } catch (err) {
+    setStatus(errMessage(err), true);
+  } finally {
+    busy = false;
+  }
+}
+
 $('btn-extract').addEventListener('click', async () => {
   if (busy || !currentThread) return;
   busy = true;
@@ -246,7 +277,10 @@ $('btn-extract').addEventListener('click', async () => {
 $('btn-review-back').addEventListener('click', () => {
   $('review').hidden = true;
   $('review-actionbar').hidden = true;
-  renderThread();
+  // Single-thread review returns to the thread; a multi-PR run has no single
+  // thread behind it, so return to the results/search state.
+  if (currentReview && !currentReview.multi && currentThread) renderThread();
+  else closeThread();
 });
 
 function reviewSelectAll(checked) {
@@ -258,79 +292,124 @@ function reviewSelectAll(checked) {
 $('btn-review-all').addEventListener('click', () => reviewSelectAll(true));
 $('btn-review-none').addEventListener('click', () => reviewSelectAll(false));
 
+function fileHeader(text) {
+  const h = document.createElement('div');
+  h.className = 'review-file';
+  h.textContent = text;
+  return h;
+}
+
+function buildFindingRow(f, { showPr = false } = {}) {
+  const row = document.createElement('div');
+  row.className = 'finding';
+
+  const top = document.createElement('label');
+  top.className = 'finding-head';
+  const check = document.createElement('input');
+  check.type = 'checkbox';
+  check.checked = true;
+  check.dataset.id = f.uid || f.dedupeId;
+  check.addEventListener('change', updateReviewTally);
+  const badge = document.createElement('span');
+  badge.className = `sev sev-${(f.severity || 'other').toLowerCase()}`;
+  badge.textContent = f.severity || '—';
+  const title = document.createElement('span');
+  title.className = 'finding-title';
+  title.textContent = f.title;
+  const meta = document.createElement('span');
+  meta.className = 'finding-meta';
+  const loc = f.lineStart ? `:${f.lineStart}${f.lineEnd && f.lineEnd !== f.lineStart ? `–${f.lineEnd}` : ''}` : '';
+  const pr = showPr && f.prNumber ? `PR #${f.prNumber} · ` : '';
+  const when = f.date ? ` · ${fmtDate(f.date)}` : '';
+  meta.textContent = `${pr}${f.reviewer}${loc}${when}`;
+  meta.title = f.date ? new Date(f.date).toLocaleString() : '';
+  top.append(check, badge, title, meta);
+  row.appendChild(top);
+
+  if (f.description || f.agentPrompt || f.suggestion) {
+    const body = document.createElement('div');
+    body.className = 'finding-body';
+    if (f.description) {
+      const p = document.createElement('p');
+      p.textContent = f.description;
+      body.appendChild(p);
+    }
+    if (f.suggestion) body.appendChild(codeBlock('Suggested change', f.suggestion));
+    if (f.agentPrompt) body.appendChild(codeBlock('Fix instruction', f.agentPrompt));
+    row.appendChild(body);
+  }
+  return row;
+}
+
+function groupByFile(findings) {
+  const byFile = new Map();
+  for (const f of findings) {
+    const k = f.file || '(no file)';
+    if (!byFile.has(k)) byFile.set(k, []);
+    byFile.get(k).push(f);
+  }
+  return byFile;
+}
+
 function renderReview() {
   $('thread').hidden = true;
   $('actionbar').hidden = true;
   $('review').hidden = false;
   $('review-actionbar').hidden = false;
 
+  const multi = currentReview.multi;
   const s = currentReview.stats;
-  $('review-title').textContent = `PR #${currentReview.prNumber} · ${s.total} recommended change${s.total === 1 ? '' : 's'}`;
-
   const box = $('review-findings');
   box.innerHTML = '';
+
+  if (multi) {
+    const okPrs = currentReview.prs.filter((p) => p.ok && p.isPullRequest);
+    $('review-title').textContent = `${okPrs.length} PR${okPrs.length === 1 ? '' : 's'} · ${s.total} recommended change${s.total === 1 ? '' : 's'}`;
+    // Surface anything that couldn't contribute.
+    const skipped = currentReview.prs.filter((p) => !p.ok || !p.isPullRequest);
+    if (skipped.length) {
+      const note = document.createElement('p');
+      note.className = 'review-note';
+      note.textContent =
+        'Skipped: ' +
+        skipped
+          .map((p) => (!p.ok ? `a link (${p.error})` : `“${(p.subject || p.input).slice(0, 40)}” (not a PR thread)`))
+          .join('; ');
+      box.appendChild(note);
+    }
+  } else {
+    $('review-title').textContent = `PR #${currentReview.prNumber} · ${s.total} recommended change${s.total === 1 ? '' : 's'}`;
+  }
 
   if (!s.total) {
     const empty = document.createElement('p');
     empty.className = 'none';
-    empty.textContent = 'No recommended changes found in this thread.';
+    empty.textContent = 'No recommended changes found.';
     box.appendChild(empty);
     $('review-actionbar').hidden = true;
     return;
   }
 
-  const byFile = new Map();
-  for (const f of currentReview.findings) {
-    const k = f.file || '(no file)';
-    if (!byFile.has(k)) byFile.set(k, []);
-    byFile.get(k).push(f);
-  }
-
-  for (const [file, group] of byFile) {
-    const h = document.createElement('div');
-    h.className = 'review-file';
-    h.textContent = file;
-    box.appendChild(h);
-
-    for (const f of group) {
-      const row = document.createElement('div');
-      row.className = 'finding';
-
-      const top = document.createElement('label');
-      top.className = 'finding-head';
-      const check = document.createElement('input');
-      check.type = 'checkbox';
-      check.checked = true;
-      check.dataset.id = f.dedupeId;
-      check.addEventListener('change', updateReviewTally);
-      const badge = document.createElement('span');
-      badge.className = `sev sev-${(f.severity || 'other').toLowerCase()}`;
-      badge.textContent = f.severity || '—';
-      const title = document.createElement('span');
-      title.className = 'finding-title';
-      title.textContent = f.title;
-      const meta = document.createElement('span');
-      meta.className = 'finding-meta';
-      const loc = f.lineStart ? `:${f.lineStart}${f.lineEnd && f.lineEnd !== f.lineStart ? `–${f.lineEnd}` : ''}` : '';
-      const when = f.date ? ` · ${fmtDate(f.date)}` : '';
-      meta.textContent = `${f.reviewer}${loc}${when}`;
-      meta.title = f.date ? new Date(f.date).toLocaleString() : '';
-      top.append(check, badge, title, meta);
-      row.appendChild(top);
-
-      if (f.description || f.agentPrompt || f.suggestion) {
-        const body = document.createElement('div');
-        body.className = 'finding-body';
-        if (f.description) {
-          const p = document.createElement('p');
-          p.textContent = f.description;
-          body.appendChild(p);
-        }
-        if (f.suggestion) body.appendChild(codeBlock('Suggested change', f.suggestion));
-        if (f.agentPrompt) body.appendChild(codeBlock('Fix instruction', f.agentPrompt));
-        row.appendChild(body);
+  if (multi) {
+    const okPrs = currentReview.prs.filter((p) => p.ok && p.isPullRequest);
+    for (const pr of okPrs) {
+      const prFindings = currentReview.findings.filter(
+        (f) => f.prNumber === pr.prNumber && f.repo === pr.repo
+      );
+      if (!prFindings.length) continue;
+      const prHead = document.createElement('div');
+      prHead.className = 'review-pr';
+      prHead.textContent = `PR #${pr.prNumber}${pr.repo ? ` — ${pr.repo}` : ''}`;
+      box.appendChild(prHead);
+      for (const [file, group] of groupByFile(prFindings)) {
+        box.appendChild(fileHeader(file));
+        for (const f of group) box.appendChild(buildFindingRow(f, { showPr: true }));
       }
-      box.appendChild(row);
+    }
+  } else {
+    for (const [file, group] of groupByFile(currentReview.findings)) {
+      box.appendChild(fileHeader(file));
+      for (const f of group) box.appendChild(buildFindingRow(f));
     }
   }
   updateReviewTally();
@@ -366,12 +445,20 @@ function updateReviewTally() {
 }
 
 async function renderSelectedMarkdown() {
+  const selectedIds = selectedReviewIds();
+  if (currentReview.multi) {
+    return unravel.renderReviewMulti({
+      prs: currentReview.prs,
+      findings: currentReview.findings,
+      selectedIds,
+    });
+  }
   return unravel.renderReview({
     repo: currentReview.repo,
     prNumber: currentReview.prNumber,
     findings: currentReview.findings,
     events: currentReview.events,
-    selectedIds: selectedReviewIds(),
+    selectedIds,
   });
 }
 
@@ -388,7 +475,10 @@ $('btn-review-copy').addEventListener('click', async () => {
 $('btn-review-save').addEventListener('click', async () => {
   try {
     const md = await renderSelectedMarkdown();
-    const result = await unravel.saveReview({ markdown: md, prNumber: currentReview.prNumber });
+    const result = await unravel.saveReview({
+      markdown: md,
+      prNumber: currentReview.multi ? 'consolidated' : currentReview.prNumber,
+    });
     if (!result.canceled) {
       toast('Saved recommended changes', {
         action: { label: 'Show in Finder', onClick: () => unravel.reveal(result.path) },

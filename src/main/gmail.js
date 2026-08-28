@@ -244,6 +244,18 @@ async function getReview(input) {
   return review.extractReview(messages);
 }
 
+// Extract several PR threads and consolidate into one tagged brief.
+async function getReviews(inputs) {
+  const reviews = await mapWithConcurrency(inputs, 4, async (input) => {
+    try {
+      return { ok: true, input, ...(await getReview(input)) };
+    } catch (err) {
+      return { ok: false, input, error: String(err?.message || err) };
+    }
+  });
+  return review.consolidateReviews(reviews);
+}
+
 async function fetchAttachment(messageId, attachmentId) {
   const res = await gmail().users.messages.attachments.get({
     userId: 'me',
@@ -253,4 +265,4 @@ async function fetchAttachment(messageId, attachmentId) {
   return Buffer.from(res.data.data, 'base64url');
 }
 
-module.exports = { searchThreads, getThread, getReview, fetchAttachment, parseThreadInput };
+module.exports = { searchThreads, getThread, getReview, getReviews, fetchAttachment, parseThreadInput };
