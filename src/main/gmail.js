@@ -1,6 +1,7 @@
 const { google } = require('googleapis');
 const auth = require('./auth');
 const links = require('./links');
+const review = require('./review');
 
 function gmail() {
   return google.gmail({ version: 'v1', auth: auth.getAuthedClient() });
@@ -161,19 +162,36 @@ function collectAttachments(part, found) {
   for (const child of part.parts || []) collectAttachments(child, found);
 }
 
-async function getThread(input) {
+async function fetchThreadData(input) {
   let id = parseThreadInput(input);
-  let res;
   try {
-    res = await gmail().users.threads.get({ userId: 'me', id, format: 'full' });
+    const res = await gmail().users.threads.get({ userId: 'me', id, format: 'full' });
+    return res.data;
   } catch (err) {
     // The id may be a message id (links to a reply mid-thread) — resolve it
     // to its thread.
     if (err?.code !== 404 && err?.response?.status !== 404) throw err;
     const msg = await gmail().users.messages.get({ userId: 'me', id, format: 'minimal' });
     id = msg.data.threadId;
-    res = await gmail().users.threads.get({ userId: 'me', id, format: 'full' });
+    const res = await gmail().users.threads.get({ userId: 'me', id, format: 'full' });
+    return res.data;
   }
+}
+
+// Does this thread look like a GitHub pull-request review thread?
+function detectPullRequest(data) {
+  const msgs = data.messages || [];
+  const subject = msgs.length ? header(msgs[0], 'Subject') : '';
+  const m = subject.match(/\[([^\]]+)\][\s\S]*?\(PR #(\d+)\)/);
+  const fromGithub = msgs.some((x) => /notifications@github\.com/i.test(header(x, 'From')));
+  return m && fromGithub
+    ? { isPullRequest: true, repo: m[1], prNumber: Number(m[2]) }
+    : { isPullRequest: false };
+}
+
+async function getThread(input) {
+  const data = await fetchThreadData(input);
+  const res = { data };
   const messages = (res.data.messages || []).map((m) => {
     const attachments = [];
     collectAttachments(m.payload, attachments);
@@ -203,7 +221,24 @@ async function getThread(input) {
   const subject = messages.length
     ? header(res.data.messages[0], 'Subject') || '(no subject)'
     : '(no subject)';
-  return { id: res.data.id, subject, messages };
+  return { id: res.data.id, subject, messages, ...detectPullRequest(res.data) };
+}
+
+// Parse a GitHub PR review thread into agent-ready recommended changes.
+async function getReview(input) {
+  const data = await fetchThreadData(input);
+  const messages = (data.messages || []).map((m) => {
+    const bodies = { html: '', text: '' };
+    collectBodies(m.payload, bodies);
+    return {
+      from: header(m, 'From'),
+      subject: header(m, 'Subject'),
+      date: Number(m.internalDate) || null,
+      text: bodies.text,
+      html: bodies.html,
+    };
+  });
+  return review.extractReview(messages);
 }
 
 async function fetchAttachment(messageId, attachmentId) {
@@ -215,4 +250,4 @@ async function fetchAttachment(messageId, attachmentId) {
   return Buffer.from(res.data.data, 'base64url');
 }
 
-module.exports = { searchThreads, getThread, fetchAttachment, parseThreadInput };
+module.exports = { searchThreads, getThread, getReview, fetchAttachment, parseThreadInput };

@@ -201,8 +201,11 @@ async function openThread(input) {
 
 function closeThread() {
   currentThread = null;
+  currentReview = null;
   $('thread').hidden = true;
   $('actionbar').hidden = true;
+  $('review').hidden = true;
+  $('review-actionbar').hidden = true;
   $('results').hidden = lastResults.length === 0;
   setStatus('');
 }
@@ -218,11 +221,195 @@ function setAllChecked(checked) {
 $('btn-select-all').addEventListener('click', () => setAllChecked(true));
 $('btn-deselect-all').addEventListener('click', () => setAllChecked(false));
 
+// ---------- review extraction (GitHub PR threads) ----------
+
+let currentReview = null;
+
+$('btn-extract').addEventListener('click', async () => {
+  if (busy || !currentThread) return;
+  busy = true;
+  const btn = $('btn-extract');
+  btn.disabled = true;
+  btn.textContent = 'Reading the thread…';
+  try {
+    currentReview = await unravel.extractReview(currentThread.id);
+    renderReview();
+  } catch (err) {
+    toast(errMessage(err), { error: true });
+  } finally {
+    busy = false;
+    btn.disabled = false;
+    btn.textContent = 'Extract recommended changes';
+  }
+});
+
+$('btn-review-back').addEventListener('click', () => {
+  $('review').hidden = true;
+  $('review-actionbar').hidden = true;
+  renderThread();
+});
+
+function reviewSelectAll(checked) {
+  document
+    .querySelectorAll('#review-findings input[type=checkbox]')
+    .forEach((c) => { c.checked = checked; });
+  updateReviewTally();
+}
+$('btn-review-all').addEventListener('click', () => reviewSelectAll(true));
+$('btn-review-none').addEventListener('click', () => reviewSelectAll(false));
+
+function renderReview() {
+  $('thread').hidden = true;
+  $('actionbar').hidden = true;
+  $('review').hidden = false;
+  $('review-actionbar').hidden = false;
+
+  const s = currentReview.stats;
+  $('review-title').textContent = `PR #${currentReview.prNumber} · ${s.total} recommended change${s.total === 1 ? '' : 's'}`;
+
+  const box = $('review-findings');
+  box.innerHTML = '';
+
+  if (!s.total) {
+    const empty = document.createElement('p');
+    empty.className = 'none';
+    empty.textContent = 'No recommended changes found in this thread.';
+    box.appendChild(empty);
+    $('review-actionbar').hidden = true;
+    return;
+  }
+
+  const byFile = new Map();
+  for (const f of currentReview.findings) {
+    const k = f.file || '(no file)';
+    if (!byFile.has(k)) byFile.set(k, []);
+    byFile.get(k).push(f);
+  }
+
+  for (const [file, group] of byFile) {
+    const h = document.createElement('div');
+    h.className = 'review-file';
+    h.textContent = file;
+    box.appendChild(h);
+
+    for (const f of group) {
+      const row = document.createElement('div');
+      row.className = 'finding';
+
+      const top = document.createElement('label');
+      top.className = 'finding-head';
+      const check = document.createElement('input');
+      check.type = 'checkbox';
+      check.checked = true;
+      check.dataset.id = f.dedupeId;
+      check.addEventListener('change', updateReviewTally);
+      const badge = document.createElement('span');
+      badge.className = `sev sev-${(f.severity || 'other').toLowerCase()}`;
+      badge.textContent = f.severity || '—';
+      const title = document.createElement('span');
+      title.className = 'finding-title';
+      title.textContent = f.title;
+      const meta = document.createElement('span');
+      meta.className = 'finding-meta';
+      const loc = f.lineStart ? `:${f.lineStart}${f.lineEnd && f.lineEnd !== f.lineStart ? `–${f.lineEnd}` : ''}` : '';
+      meta.textContent = `${f.reviewer}${loc}`;
+      top.append(check, badge, title, meta);
+      row.appendChild(top);
+
+      if (f.description || f.agentPrompt || f.suggestion) {
+        const body = document.createElement('div');
+        body.className = 'finding-body';
+        if (f.description) {
+          const p = document.createElement('p');
+          p.textContent = f.description;
+          body.appendChild(p);
+        }
+        if (f.suggestion) body.appendChild(codeBlock('Suggested change', f.suggestion));
+        if (f.agentPrompt) body.appendChild(codeBlock('Fix instruction', f.agentPrompt));
+        row.appendChild(body);
+      }
+      box.appendChild(row);
+    }
+  }
+  updateReviewTally();
+}
+
+function codeBlock(label, text) {
+  const wrap = document.createElement('div');
+  wrap.className = 'finding-code';
+  const l = document.createElement('span');
+  l.className = 'finding-code-label';
+  l.textContent = label;
+  const pre = document.createElement('pre');
+  pre.textContent = text;
+  wrap.append(l, pre);
+  return wrap;
+}
+
+function selectedReviewIds() {
+  return [...document.querySelectorAll('#review-findings input[type=checkbox]:checked')].map(
+    (c) => c.dataset.id
+  );
+}
+
+function updateReviewTally() {
+  const n = selectedReviewIds().length;
+  const total = currentReview.stats.total;
+  $('review-tally').innerHTML = '';
+  const strong = document.createElement('span');
+  strong.textContent = `${n} of ${total} selected`;
+  $('review-tally').appendChild(strong);
+  $('btn-review-copy').disabled = n === 0;
+  $('btn-review-save').disabled = n === 0;
+}
+
+async function renderSelectedMarkdown() {
+  return unravel.renderReview({
+    repo: currentReview.repo,
+    prNumber: currentReview.prNumber,
+    findings: currentReview.findings,
+    events: currentReview.events,
+    selectedIds: selectedReviewIds(),
+  });
+}
+
+$('btn-review-copy').addEventListener('click', async () => {
+  try {
+    const md = await renderSelectedMarkdown();
+    await unravel.copyText(md);
+    toast('Copied — paste it to your coding agent.');
+  } catch (err) {
+    toast(errMessage(err), { error: true });
+  }
+});
+
+$('btn-review-save').addEventListener('click', async () => {
+  try {
+    const md = await renderSelectedMarkdown();
+    const result = await unravel.saveReview({ markdown: md, prNumber: currentReview.prNumber });
+    if (!result.canceled) {
+      toast('Saved recommended changes', {
+        action: { label: 'Show in Finder', onClick: () => unravel.reveal(result.path) },
+      });
+    }
+  } catch (err) {
+    toast(errMessage(err), { error: true });
+  }
+});
+
 function renderThread() {
   $('results').hidden = true;
   $('thread').hidden = false;
+  $('review').hidden = true;
+  $('review-actionbar').hidden = true;
   $('btn-back').hidden = lastResults.length === 0;
   $('thread-subject').textContent = currentThread.subject;
+
+  const isPR = currentThread.isPullRequest;
+  $('pr-banner').hidden = !isPR;
+  if (isPR) {
+    $('pr-banner-text').textContent = `Pull request #${currentThread.prNumber} — pull every reviewer's recommended changes into one brief.`;
+  }
 
   const box = $('thread-messages');
   box.innerHTML = '';
@@ -374,7 +561,9 @@ function updateTally() {
   const total = document.querySelectorAll('#thread-messages input[type=checkbox]').length;
   if (total === 0) {
     $('actionbar').hidden = true;
-    toast('This thread has no attachments.', { error: true });
+    // A PR review thread legitimately has no attachments — the extract banner
+    // is the point there, so don't nag.
+    if (!currentThread?.isPullRequest) toast('This thread has no attachments.', { error: true });
     return;
   }
   $('actionbar').hidden = false;

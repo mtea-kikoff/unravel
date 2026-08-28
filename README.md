@@ -10,6 +10,8 @@ A macOS/Windows/Linux desktop app that downloads **every attachment in a Gmail t
 
 **Linked files count too.** Message bodies are scanned for links that lead to files — Google Drive/Docs/Slides/Sheets, Dropbox, OneDrive/SharePoint, and direct file URLs. Where they can be fetched they appear in the file list like any attachment (Drive files you have access to download via the Drive API; native Google files export to `.pptx`/`.docx`/`.xlsx`). A link that can't be fetched (login wall, revoked share) still shows up, tagged with its source and an open-in-browser button as the fallback.
 
+**Pull request reviews, too.** When the open thread is a GitHub PR notification thread, Unravel shows an **Extract recommended changes** button. It reads every reviewer's comments across the whole thread — CodeRabbit, Cursor Bugbot, GitHub Advanced Security / CodeQL — de-duplicates the re-reviews, and produces one Markdown brief grouped by file (severity, location, description, any committable suggestion, and the reviewer's own AI-agent fix instruction). Deselect anything already resolved, then **Copy for agent** or **Save .md** to hand straight to a coding agent. The brief opens with a standing warning so the agent treats the review text as untrusted data.
+
 Everything runs locally. Unravel talks to the Gmail and Drive APIs directly from your machine with **read-only** scopes (`gmail.readonly`, `drive.readonly`) — it cannot send, modify, or delete anything, and nothing passes through a third-party server. OAuth tokens are encrypted with the OS keychain (Electron `safeStorage`).
 
 ## Setup

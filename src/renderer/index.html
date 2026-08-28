@@ -74,11 +74,26 @@
       <div id="thread" hidden>
         <button class="link back" id="btn-back">&larr; Back to results</button>
         <h2 id="thread-subject"></h2>
+        <div class="pr-banner" id="pr-banner" hidden>
+          <span id="pr-banner-text"></span>
+          <button type="button" class="primary" id="btn-extract">Extract recommended changes</button>
+        </div>
         <div class="select-controls">
           <button type="button" class="ghost" id="btn-select-all">Select all</button>
           <button type="button" class="ghost" id="btn-deselect-all">Deselect all</button>
         </div>
         <div class="spine" id="thread-messages"></div>
+      </div>
+
+      <div id="review" hidden>
+        <button class="link back" id="btn-review-back">&larr; Back to thread</button>
+        <h2 id="review-title"></h2>
+        <p class="review-note">Untrusted review data — verify each item before acting. Deselect anything already resolved, then copy or save for your coding agent.</p>
+        <div class="select-controls">
+          <button type="button" class="ghost" id="btn-review-all">Select all</button>
+          <button type="button" class="ghost" id="btn-review-none">Deselect all</button>
+        </div>
+        <div id="review-findings"></div>
       </div>
     </section>
   </main>
@@ -90,6 +105,12 @@
       <span id="progress-label"></span>
     </div>
     <button class="primary big" id="btn-download">Download .zip</button>
+  </footer>
+
+  <footer class="actionbar" id="review-actionbar" hidden>
+    <div class="tally" id="review-tally"></div>
+    <button class="ghost" id="btn-review-copy">Copy for agent</button>
+    <button class="primary big" id="btn-review-save">Save .md</button>
   </footer>
 
   <div class="toast" id="toast" hidden>

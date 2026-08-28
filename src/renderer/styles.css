@@ -203,6 +203,100 @@ input:focus { outline: 2px solid var(--thread); outline-offset: -1px; }
   margin: -8px 0 16px;
 }
 
+/* ---------- PR review extraction ---------- */
+
+.pr-banner {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  background: var(--card);
+  border: 1px solid var(--thread);
+  border-radius: 10px;
+  padding: 14px 16px;
+  margin: 0 0 18px;
+}
+.pr-banner span { flex: 1; color: var(--ink); font-size: 13px; }
+.pr-banner .primary { flex: none; }
+
+.review-note {
+  color: var(--muted);
+  font-size: 12.5px;
+  margin: 0 0 14px;
+  line-height: 1.5;
+}
+
+.review-file {
+  font-family: var(--mono);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--thread);
+  margin: 18px 0 8px;
+  padding-bottom: 4px;
+  border-bottom: 1px solid var(--line);
+}
+
+.finding {
+  background: var(--card);
+  border: 1px solid var(--line);
+  border-radius: 9px;
+  padding: 10px 13px;
+  margin-bottom: 8px;
+}
+.finding-head {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  cursor: pointer;
+}
+.finding-head input[type="checkbox"] { accent-color: var(--thread); width: 15px; height: 15px; flex: none; }
+.finding-title { flex: 1; font-weight: 600; font-size: 13px; }
+.finding-meta { flex: none; color: var(--muted); font-size: 11.5px; font-family: var(--mono); }
+
+.sev {
+  flex: none;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  border-radius: 4px;
+  padding: 2px 6px;
+  color: #fff;
+  background: var(--muted);
+}
+.sev-critical, .sev-high { background: var(--thread-deep); }
+.sev-major { background: var(--thread); }
+.sev-medium, .sev-minor { background: #c8791f; }
+.sev-low, .sev-trivial { background: #6c8; color: #06331b; }
+
+.finding-body {
+  margin: 9px 0 2px;
+  padding-left: 24px;
+}
+.finding-body p { margin: 0 0 8px; font-size: 12.5px; line-height: 1.55; color: var(--ink); }
+
+.finding-code { margin: 0 0 8px; }
+.finding-code-label {
+  display: block;
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 3px;
+}
+.finding-code pre {
+  margin: 0;
+  font-family: var(--mono);
+  font-size: 11.5px;
+  line-height: 1.5;
+  background: var(--paper);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 8px 10px;
+  overflow-x: auto;
+  white-space: pre-wrap;
+}
+
 .spine {
   position: relative;
   padding-left: 26px;

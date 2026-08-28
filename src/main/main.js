@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, dialog, shell } = require('electron');
+const { app, BrowserWindow, ipcMain, dialog, shell, clipboard } = require('electron');
 const path = require('path');
 const os = require('os');
 const fs = require('fs');
@@ -91,6 +91,28 @@ function registerIpc() {
 
   ipcMain.handle('gmail:search', (_e, query) => gmail.searchThreads(query));
   ipcMain.handle('gmail:thread', (_e, input) => gmail.getThread(input));
+  ipcMain.handle('review:extract', (_e, input) => gmail.getReview(input));
+
+  // Re-render markdown from a chosen subset of findings (the user can
+  // deselect superseded/irrelevant ones before exporting).
+  ipcMain.handle('review:render', (_e, payload) => require('./review').renderMarkdown(payload));
+
+  ipcMain.handle('review:copy', (_e, text) => {
+    clipboard.writeText(String(text || ''));
+    return true;
+  });
+
+  ipcMain.handle('review:save', async (_e, { markdown, prNumber }) => {
+    const name = `PR-${prNumber || 'review'}-recommended-changes.md`;
+    const { canceled, filePath } = await dialog.showSaveDialog(win, {
+      title: 'Save recommended changes',
+      defaultPath: path.join(app.getPath('downloads'), name),
+      filters: [{ name: 'Markdown', extensions: ['md'] }],
+    });
+    if (canceled || !filePath) return { canceled: true };
+    fs.writeFileSync(filePath, String(markdown || ''));
+    return { canceled: false, path: filePath };
+  });
 
   ipcMain.handle('zip:download', async (_e, { subject, items }) => {
     if (!items?.length) throw new Error('No attachments selected.');
