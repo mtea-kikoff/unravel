@@ -89,90 +89,115 @@ function fenced(body, label) {
 // spans from its severity line to the next one (or end of message).
 const SEV_LINE = /_([^_\n]*(?:Security|Correctness|Maintainability|Stability|Performance|Reliability|Readability|Code Quality|Privacy|Availability)[^_\n]*)_\s*\|\s*_([^_\n]+)_(?:\s*\|\s*_([^_\n]+)_)?/g;
 
+const KIND = /(?:important|nitpick|refactor|potential issue|suggestion|blocker|caution|warning)/i;
+
+// Split on the per-finding markers rather than severity badges, so findings
+// with no badge (outside-diff comments) are captured too. The aggregate/info
+// blocks carry no marker, so they land in the first finding's slice, where
+// last-/first-occurrence extraction ignores them.
 function parseCodeRabbit(body, meta) {
   const findings = [];
-  const anchors = [...body.matchAll(SEV_LINE)];
-  for (let i = 0; i < anchors.length; i++) {
-    const a = anchors[i];
-    const span = body.slice(a.index, i + 1 < anchors.length ? anchors[i + 1].index : undefined);
-
-    const category = a[1].replace(/[^\p{L}\s&]/gu, '').trim();
-    const severity = (a[2].match(/Critical|Major|Minor|Trivial/) || [])[0] || null;
-    const effort = a[3] ? a[3].replace(/[^\p{L}\s-]/gu, '').trim() : null;
-
-    const prompt = fenced(span, '🤖 Prompt for AI Agents');
-    const suggestion = (() => {
-      const m = span.match(/```suggestion\n([\s\S]*?)```/i);
-      return m ? m[1].replace(/\s+$/, '') : null;
-    })();
-    const hash = (span.match(/<!--\s*cr-comment:v1:([0-9a-f]+)\s*-->/i) || [])[1];
-
-    // Title: CodeRabbit prefixes it "important:"/"nitpick:" and sometimes
-    // bolds it, sometimes not. Strip the detail blocks first so we don't grab
-    // text out of the static-analysis scripts.
-    const KIND = /(?:important|nitpick|refactor|potential issue|suggestion|blocker|caution|warning)/i;
-    const afterDetails = span.replace(/<details>[\s\S]*?<\/details>/gi, '\n');
-    let title = null;
-    const kindMatch = afterDetails.match(new RegExp(`${KIND.source}:\\s*([^\\n]+)`, 'i'));
-    if (kindMatch) title = kindMatch[1];
-    else {
-      const boldMatch = afterDetails.match(/\*\*([^*\n]+?)\*\*/);
-      if (boldMatch) title = boldMatch[1];
-    }
-    title = title
-      ? title
-          .replace(/\*\*/g, '')
-          .replace(new RegExp(`^${KIND.source}:\\s*`, 'i'), '')
-          .replace(/\.$/, '')
-          .trim()
-      : null;
-
-    // Location: the AI-agent prompt is the most reliable source. Fall back to
-    // CodeRabbit's section layout — a "path/file.py (2)" header followed by a
-    // "64-82 : <severity line>" range on the severity line itself.
-    const loc = prompt ? fileAndLinesFromPrompt(prompt) : {};
-    if (!loc.lineStart) {
-      const before = body.slice(Math.max(0, a.index - 24), a.index);
-      const rng = before.match(/(\d+)\s*-\s*(\d+)\s*:\s*$/) || before.match(/(\d+)\s*:\s*$/);
-      if (rng) {
-        loc.lineStart = Number(rng[1]);
-        loc.lineEnd = Number(rng[2] || rng[1]);
-      }
-    }
-    if (!loc.file) {
-      const headers = [...body.slice(0, a.index).matchAll(/(^|\n)\s*`?([\w./-]+\.\w+)`?\s*\(\d+\)\s*(?=\n)/g)];
-      const last = headers.pop();
-      if (last) loc.file = last[2];
-    }
-
-    let desc = afterDetails
-      .replace(SEV_LINE, '')
-      .replace(/```suggestion[\s\S]*?```/gi, '')
-      .replace(/(?:\*\*)?\s*(?:important|nitpick|refactor|potential issue|suggestion|blocker|caution|warning):[^\n*]+(?:\*\*)?/i, '')
-      .replace(/\*\*([^*]+?)\*\*/, '')
-      .replace(/<!--[\s\S]*?-->/g, '')
-      .replace(/_Sources:[^\n]*/gi, '')
-      .replace(/^>.*$/gm, '')
-      .replace(/\n{3,}/g, '\n\n')
-      .trim();
-
-    findings.push({
-      reviewer: meta.reviewer,
-      dedupeId: hash ? `cr:${hash}` : `cr:${meta.date}:${i}`,
-      file: loc.file || null,
-      lineStart: loc.lineStart || null,
-      lineEnd: loc.lineEnd || null,
-      category,
-      severity,
-      effort,
-      title: title || '(untitled finding)',
-      description: desc,
-      suggestion,
-      agentPrompt: prompt ? trimPromptPreamble(prompt) : null,
-      date: meta.date,
-    });
+  const marker = /<!--\s*cr-comment:v1:([0-9a-f]+)\s*-->/gi;
+  let prev = 0;
+  let m;
+  let i = 0;
+  while ((m = marker.exec(body))) {
+    const f = parseCRFinding(body.slice(prev, m.index), m[1], body, m.index, meta, i++);
+    prev = m.index + m[0].length;
+    if (f) findings.push(f);
   }
   return findings;
+}
+
+function parseCRFinding(seg, hash, body, markerIndex, meta) {
+  // Some findings quote their whole body — description, fix steps, and the
+  // agent prompt — with "> " prefixes. Strip them so the fence/title/desc
+  // patterns see clean markdown. The leading code-diff (before the title) is
+  // dropped later by slicing the description from the title onward.
+  const unq = seg.replace(/^>\s?/gm, '');
+
+  const prompt = fenced(unq, '🤖 Prompt for AI Agents');
+  const sm = unq.match(/```suggestion\n([\s\S]*?)```/i);
+  const suggestion = sm ? sm[1].replace(/\s+$/, '') : null;
+
+  // Severity badge (optional). Last one in the slice so the first finding —
+  // whose slice trails the aggregate — still picks its own.
+  const sev = [...unq.matchAll(SEV_LINE)].pop();
+  const category = sev ? sev[1].replace(/[^\p{L}\s&]/gu, '').trim() : null;
+  const severity = sev ? (sev[2].match(/Critical|Major|Minor|Trivial/) || [])[0] || null : null;
+  const effort = sev && sev[3] ? sev[3].replace(/[^\p{L}\s-]/gu, '').trim() : null;
+
+  // A real finding needs one of: a kind-prefixed title, a severity badge, or
+  // an agent prompt. Info/aggregate slices have none of these, so they drop.
+  const kinds = [...unq.matchAll(new RegExp(`${KIND.source}:\\s*([^\\n]+)`, 'gi'))];
+  if (!kinds.length && !sev && !prompt) return null;
+
+  // Title: the "important:"/"nitpick:"/… prefixed line (last match is this
+  // finding's own); else the last bold before the prompt.
+  let title = null;
+  if (kinds.length) title = kinds[kinds.length - 1][1];
+  else {
+    const bolds = [...unq.replace(/<details>[\s\S]*?<\/details>/gi, '\n').matchAll(/\*\*([^*\n]+?)\*\*/g)];
+    if (bolds.length) title = bolds[bolds.length - 1][1];
+  }
+  // Titles are one sentence; drop a description clause that trails on the same
+  // line ("Fail closed before rotation. The flow writes…" → the first part).
+  if (title) {
+    title = title.replace(/\*\*/g, '').trim();
+    const split = title.match(/^(.{12,}?[.:])\s+[A-Z`]/);
+    if (split) title = split[1];
+    title = title.replace(/[.:]$/, '').trim();
+  }
+
+  // Location: prompt first; then a "path/file.py (2)" section header with a
+  // "64-82 :" range on the badge line.
+  const loc = prompt ? fileAndLinesFromPrompt(prompt) : {};
+  if (!loc.lineStart && sev) {
+    const before = unq.slice(Math.max(0, sev.index - 24), sev.index);
+    const rng = before.match(/(\d+)\s*-\s*(\d+)\s*:\s*$/) || before.match(/(\d+)\s*:\s*$/);
+    if (rng) {
+      loc.lineStart = Number(rng[1]);
+      loc.lineEnd = Number(rng[2] || rng[1]);
+    }
+  }
+  if (!loc.file) {
+    const headers = [...body.slice(0, markerIndex).matchAll(/(^|\n)\s*`?([\w./-]+\.\w+)`?\s*\(\d+\)\s*(?=\n)/g)];
+    const last = headers.pop();
+    if (last) loc.file = last[2];
+  }
+
+  // Description: from the title (or badge) line onward, so the leading code
+  // diff is excluded, to the first structured block.
+  const kindIdx = unq.search(new RegExp(`${KIND.source}:\\s*[^\\n]+`, 'i'));
+  const at = kindIdx >= 0 ? kindIdx : sev ? sev.index : -1;
+  let desc = at >= 0 ? unq.slice(at) : unq;
+  desc = desc
+    .replace(/<details>[\s\S]*?<\/details>/gi, '\n')
+    .replace(SEV_LINE, '')
+    .replace(/```suggestion[\s\S]*?```/gi, '')
+    .replace(new RegExp(`(?:\\*\\*)?\\s*${KIND.source}:[^\\n*]+(?:\\*\\*)?`, 'i'), '')
+    .replace(/\*\*([^*]+?)\*\*/, '')
+    .replace(/<!--[\s\S]*?-->/g, '')
+    .replace(/_Sources:[^\n]*/gi, '')
+    .replace(/^\+.*$/gm, '') // any residual added-code diff line
+    .replace(/\n{3,}/g, '\n\n')
+    .trim();
+
+  return {
+    reviewer: meta.reviewer,
+    dedupeId: `cr:${hash}`,
+    file: loc.file || null,
+    lineStart: loc.lineStart || null,
+    lineEnd: loc.lineEnd || null,
+    category,
+    severity,
+    effort,
+    title: title || '(untitled finding)',
+    description: desc,
+    suggestion,
+    agentPrompt: prompt ? trimPromptPreamble(prompt) : null,
+    date: meta.date,
+  };
 }
 
 // ---- Cursor Bugbot --------------------------------------------------------
@@ -227,8 +252,11 @@ function parseCodeQL(text, html, meta) {
   while ((m = re.exec(text))) {
     const [, rule, description, url, scanId] = m;
     findings.push({
+      // Key on rule + file, not the per-notification scan id: GitHub re-posts
+      // the same alert on every push, so scan-id keying would keep dozens of
+      // identical entries.
       reviewer: meta.reviewer,
-      dedupeId: `codeql:${scanId}`,
+      dedupeId: `codeql:${files[idx] || '?'}:${rule.trim()}`,
       file: files[idx] || null,
       lineStart: null,
       lineEnd: null,
