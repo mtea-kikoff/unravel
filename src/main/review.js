@@ -37,6 +37,17 @@ function severityRank(sev) {
   return sev && sev in SEVERITY_RANK ? SEVERITY_RANK[sev] : 2;
 }
 
+// Deterministic UTC stamp (emails' internalDate is UTC ms) so a coding agent
+// can tell newer findings from older ones.
+function fmtDateTime(ms) {
+  if (!ms) return null;
+  const d = new Date(ms);
+  const p = (n) => String(n).padStart(2, '0');
+  return `${d.getUTCFullYear()}-${p(d.getUTCMonth() + 1)}-${p(d.getUTCDate())} ${p(
+    d.getUTCHours()
+  )}:${p(d.getUTCMinutes())} UTC`;
+}
+
 // "In `@src/foo.py` around lines 129 - 151" | "around line 245" | "at line 334"
 function fileAndLinesFromPrompt(prompt) {
   const withLines = prompt.match(
@@ -354,7 +365,11 @@ function renderMarkdown({ repo, prNumber, findings, events, selectedIds }) {
     lines.push('');
   }
 
-  lines.push(`**${chosen.length} finding${chosen.length === 1 ? '' : 's'}** after de-duplicating re-reviews.`);
+  lines.push(
+    `**${chosen.length} finding${chosen.length === 1 ? '' : 's'}** after de-duplicating re-reviews ` +
+      '(when a finding was posted more than once, the most recent version is kept). ' +
+      'Each finding shows when it was posted — prefer the newest guidance when items conflict.'
+  );
   lines.push('');
 
   const byFile = new Map();
@@ -372,8 +387,11 @@ function renderMarkdown({ repo, prNumber, findings, events, selectedIds }) {
       n += 1;
       const loc = f.lineStart ? `lines ${f.lineStart}${f.lineEnd && f.lineEnd !== f.lineStart ? `–${f.lineEnd}` : ''}` : '';
       const tags = [f.severity, f.category].filter(Boolean).join(' · ');
+      const when = fmtDateTime(f.date);
       lines.push(`### ${n}. ${f.title}`);
-      lines.push(`- **${tags || 'Finding'}** · ${f.reviewer}${loc ? ` · ${loc}` : ''}`);
+      lines.push(
+        `- **${tags || 'Finding'}** · ${f.reviewer}${loc ? ` · ${loc}` : ''}${when ? ` · posted ${when}` : ''}`
+      );
       lines.push('');
       if (f.description) {
         lines.push(f.description);

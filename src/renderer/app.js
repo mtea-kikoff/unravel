@@ -312,7 +312,9 @@ function renderReview() {
       const meta = document.createElement('span');
       meta.className = 'finding-meta';
       const loc = f.lineStart ? `:${f.lineStart}${f.lineEnd && f.lineEnd !== f.lineStart ? `–${f.lineEnd}` : ''}` : '';
-      meta.textContent = `${f.reviewer}${loc}`;
+      const when = f.date ? ` · ${fmtDate(f.date)}` : '';
+      meta.textContent = `${f.reviewer}${loc}${when}`;
+      meta.title = f.date ? new Date(f.date).toLocaleString() : '';
       top.append(check, badge, title, meta);
       row.appendChild(top);
 
