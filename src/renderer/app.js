@@ -407,10 +407,25 @@ function renderThread() {
   $('btn-back').hidden = lastResults.length === 0;
   $('thread-subject').textContent = currentThread.subject;
 
-  const isPR = currentThread.isPullRequest;
-  $('pr-banner').hidden = !isPR;
-  if (isPR) {
+  // Extract banner: only on GitHub threads. Active for a detected PR; greyed
+  // out with a note for a GitHub thread that has nothing to extract. Normal
+  // email threads never see it. Reset the button state on every render so a
+  // prior "Reading the thread…" state can't linger.
+  const banner = $('pr-banner');
+  const extractBtn = $('btn-extract');
+  extractBtn.textContent = 'Extract recommended changes';
+  if (currentThread.isPullRequest) {
+    banner.hidden = false;
+    banner.classList.remove('pr-banner-off');
+    extractBtn.disabled = false;
     $('pr-banner-text').textContent = `Pull request #${currentThread.prNumber} — pull every reviewer's recommended changes into one brief.`;
+  } else if (currentThread.isGithub) {
+    banner.hidden = false;
+    banner.classList.add('pr-banner-off');
+    extractBtn.disabled = true;
+    $('pr-banner-text').textContent = 'No pull-request review comments to extract in this GitHub thread.';
+  } else {
+    banner.hidden = true;
   }
 
   const box = $('thread-messages');

@@ -178,15 +178,18 @@ async function fetchThreadData(input) {
   }
 }
 
-// Does this thread look like a GitHub pull-request review thread?
+// Classify the thread for the review-extraction UI. `isGithub` gates whether
+// the extract banner appears at all (normal email threads never see it);
+// `isPullRequest` gates whether extraction is actually offered.
 function detectPullRequest(data) {
   const msgs = data.messages || [];
   const subject = msgs.length ? header(msgs[0], 'Subject') : '';
   const m = subject.match(/\[([^\]]+)\][\s\S]*?\(PR #(\d+)\)/);
-  const fromGithub = msgs.some((x) => /notifications@github\.com/i.test(header(x, 'From')));
-  return m && fromGithub
-    ? { isPullRequest: true, repo: m[1], prNumber: Number(m[2]) }
-    : { isPullRequest: false };
+  const isGithub = msgs.some((x) => /notifications@github\.com/i.test(header(x, 'From')));
+  if (m && isGithub) {
+    return { isPullRequest: true, isGithub: true, repo: m[1], prNumber: Number(m[2]) };
+  }
+  return { isPullRequest: false, isGithub };
 }
 
 async function getThread(input) {

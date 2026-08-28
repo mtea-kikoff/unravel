@@ -217,6 +217,8 @@ input:focus { outline: 2px solid var(--thread); outline-offset: -1px; }
 }
 .pr-banner span { flex: 1; color: var(--ink); font-size: 13px; }
 .pr-banner .primary { flex: none; }
+.pr-banner.pr-banner-off { border-color: var(--line); }
+.pr-banner.pr-banner-off span { color: var(--muted); }
 
 .review-note {
   color: var(--muted);
