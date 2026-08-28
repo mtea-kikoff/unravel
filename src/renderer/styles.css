@@ -30,6 +30,11 @@
 
 * { box-sizing: border-box; }
 
+/* The `hidden` attribute must win over class `display` rules (.actionbar,
+   .pr-banner, etc. set display:flex, which would otherwise keep hidden
+   elements visible). */
+[hidden] { display: none !important; }
+
 body {
   margin: 0;
   font-family: var(--body);
