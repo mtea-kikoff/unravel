@@ -14,6 +14,8 @@ A macOS/Windows/Linux desktop app that downloads **every attachment in a Gmail t
 
 **Consolidate several PRs at once.** Click **+ Consolidate reviews from multiple PRs** to open a panel with one input box per link (add or remove boxes as needed), then **Extract & consolidate**. Unravel merges them all into a single brief, grouped by PR with every finding tagged `PR #N`. Non-PR threads in the mix are noted and skipped. Handy when a stack of related PRs needs its fixes handed to one coding-agent session.
 
+**What's new since last time.** Review threads keep growing as bots re-review. Unravel remembers when you last copied each PR's brief (a local timestamp per PR) and flags any finding posted since with a red **NEW** badge and a "N new since last copy" count. **Copy new** grabs just those; **Copy for agent** / **Save .md** still take everything selected. Any copy or save advances the watermark, so those findings stop being new next time. The copied Markdown also tags new items, and the watermark lives only on your machine.
+
 Everything runs locally. Unravel talks to the Gmail and Drive APIs directly from your machine with **read-only** scopes (`gmail.readonly`, `drive.readonly`) — it cannot send, modify, or delete anything, and nothing passes through a third-party server. OAuth tokens are encrypted with the OS keychain (Electron `safeStorage`).
 
 ## Setup

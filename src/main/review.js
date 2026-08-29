@@ -382,9 +382,10 @@ function findingLines(f, n) {
   const tags = [f.severity, f.category].filter(Boolean).join(' · ');
   const when = fmtDateTime(f.date);
   const pr = f.prNumber ? ` · PR #${f.prNumber}` : '';
+  const isNew = f.isNew ? ' · **NEW**' : '';
   lines.push(`### ${n}. ${f.title}`);
   lines.push(
-    `- **${tags || 'Finding'}** · ${f.reviewer}${pr}${loc ? ` · ${loc}` : ''}${when ? ` · posted ${when}` : ''}`
+    `- **${tags || 'Finding'}** · ${f.reviewer}${pr}${loc ? ` · ${loc}` : ''}${when ? ` · posted ${when}` : ''}${isNew}`
   );
   lines.push('');
   if (f.description) {
@@ -526,6 +527,7 @@ function consolidateReviews(reviews) {
     findings,
     stats: {
       total: findings.length,
+      newCount: findings.filter((f) => f.isNew).length,
       prs: prs.filter((p) => p.ok && p.isPullRequest).length,
       byReviewer: countBy(findings, 'reviewer'),
       bySeverity: countBy(findings, 'severity'),

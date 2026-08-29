@@ -25,6 +25,19 @@ function saveSettings(patch) {
   return next;
 }
 
+// Per-PR "last copied" watermark (max finding timestamp seen at last copy), so
+// findings posted since then can be flagged NEW. Keyed by "repo#prNumber".
+function getWatermarks() {
+  return readJSON(file('review-watermarks.json')) || {};
+}
+
+function setWatermarks(patch) {
+  const cur = getWatermarks();
+  for (const [k, v] of Object.entries(patch)) cur[k] = Math.max(cur[k] || 0, v || 0);
+  fs.writeFileSync(file('review-watermarks.json'), JSON.stringify(cur, null, 2));
+  return cur;
+}
+
 // Effective OAuth credentials: a user's own pasted client always wins;
 // otherwise the shared client baked into the build (if any).
 function getCredentials() {
@@ -71,6 +84,8 @@ module.exports = {
   getSettings,
   saveSettings,
   getCredentials,
+  getWatermarks,
+  setWatermarks,
   saveTokens,
   loadTokens,
   clearTokens,

@@ -12,6 +12,7 @@ contextBridge.exposeInMainWorld('unravel', {
   renderReview: (payload) => ipcRenderer.invoke('review:render', payload),
   renderReviewMulti: (payload) => ipcRenderer.invoke('review:renderMulti', payload),
   copyText: (text) => ipcRenderer.invoke('review:copy', text),
+  markSeen: (entries) => ipcRenderer.invoke('review:markSeen', entries),
   saveReview: (payload) => ipcRenderer.invoke('review:save', payload),
   downloadZip: (payload) => ipcRenderer.invoke('zip:download', payload),
   preview: (payload) => ipcRenderer.invoke('attachment:preview', payload),

@@ -106,6 +106,17 @@ function registerIpc() {
     return true;
   });
 
+  // Advance the "last copied" watermark for the given PRs so their current
+  // findings stop counting as new.
+  ipcMain.handle('review:markSeen', (_e, entries) => {
+    const patch = {};
+    for (const { prKey, watermark } of entries || []) {
+      if (prKey && watermark) patch[prKey] = watermark;
+    }
+    if (Object.keys(patch).length) store.setWatermarks(patch);
+    return true;
+  });
+
   ipcMain.handle('review:save', async (_e, { markdown, prNumber }) => {
     const name = `PR-${prNumber || 'review'}-recommended-changes.md`;
     const { canceled, filePath } = await dialog.showSaveDialog(win, {

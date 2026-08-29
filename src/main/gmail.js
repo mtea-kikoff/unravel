@@ -2,6 +2,7 @@ const { google } = require('googleapis');
 const auth = require('./auth');
 const links = require('./links');
 const review = require('./review');
+const store = require('./store');
 
 function gmail() {
   return google.gmail({ version: 'v1', auth: auth.getAuthedClient() });
@@ -241,7 +242,18 @@ async function getReview(input) {
       html: bodies.html,
     };
   });
-  return review.extractReview(messages);
+  const r = review.extractReview(messages);
+  // Flag findings posted since the user last copied this PR's brief.
+  const prKey = r.repo && r.prNumber ? `${r.repo}#${r.prNumber}` : null;
+  const watermark = prKey ? store.getWatermarks()[prKey] || null : null;
+  for (const f of r.findings) {
+    f.prKey = prKey;
+    f.isNew = watermark ? (f.date || 0) > watermark : false;
+  }
+  r.prKey = prKey;
+  r.lastCopiedAt = watermark;
+  r.newCount = r.findings.filter((f) => f.isNew).length;
+  return r;
 }
 
 // Extract several PR threads and consolidate into one tagged brief.

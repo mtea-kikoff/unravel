@@ -306,6 +306,23 @@ input:focus { outline: 2px solid var(--thread); outline-offset: -1px; }
   padding: 10px 13px;
   margin-bottom: 8px;
 }
+.finding.is-new { border-color: var(--thread); box-shadow: inset 3px 0 0 var(--thread); }
+
+.new-badge {
+  flex: none;
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  color: #fff;
+  background: var(--thread);
+  border-radius: 4px;
+  padding: 2px 5px;
+}
+
+.tally .sub.new { color: var(--thread); font-weight: 600; }
+
+.ghost.accent { border-color: var(--thread); color: var(--thread); }
+.ghost.accent:hover { background: var(--thread); color: #fff; }
 .finding-head {
   display: flex;
   align-items: center;

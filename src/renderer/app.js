@@ -395,8 +395,16 @@ function buildFindingRow(f, { showPr = false } = {}) {
   const when = f.date ? ` · ${fmtDate(f.date)}` : '';
   meta.textContent = `${pr}${f.reviewer}${loc}${when}`;
   meta.title = f.date ? new Date(f.date).toLocaleString() : '';
-  top.append(check, badge, title, meta);
+  top.append(check, badge);
+  if (f.isNew) {
+    const nb = document.createElement('span');
+    nb.className = 'new-badge';
+    nb.textContent = 'NEW';
+    top.appendChild(nb);
+  }
+  top.append(title, meta);
   row.appendChild(top);
+  if (f.isNew) row.classList.add('is-new');
 
   if (f.description || f.agentPrompt || f.suggestion) {
     const body = document.createElement('div');
@@ -505,24 +513,54 @@ function selectedReviewIds() {
   );
 }
 
+function newCount() {
+  return currentReview.findings.filter((f) => f.isNew).length;
+}
+
 function updateReviewTally() {
   const n = selectedReviewIds().length;
   const total = currentReview.stats.total;
+  const nw = newCount();
   $('review-tally').innerHTML = '';
   const strong = document.createElement('span');
   strong.textContent = `${n} of ${total} selected`;
   $('review-tally').appendChild(strong);
+  if (nw) {
+    const sub = document.createElement('span');
+    sub.className = 'sub new';
+    sub.textContent = `${nw} new since last copy`;
+    $('review-tally').appendChild(sub);
+  }
+  $('btn-review-copynew').hidden = nw === 0;
+  $('btn-review-copynew').textContent = `Copy new (${nw})`;
   $('btn-review-copy').disabled = n === 0;
   $('btn-review-save').disabled = n === 0;
 }
 
-async function renderSelectedMarkdown() {
-  const selectedIds = selectedReviewIds();
+// Persist a "last copied" watermark per PR = the newest finding timestamp
+// shown, so those findings stop counting as new. Then clear the in-memory NEW
+// flags and re-render for instant feedback.
+async function advanceWatermark() {
+  const byPr = new Map();
+  for (const f of currentReview.findings) {
+    if (!f.prKey || !f.date) continue;
+    byPr.set(f.prKey, Math.max(byPr.get(f.prKey) || 0, f.date));
+  }
+  const entries = [...byPr].map(([prKey, watermark]) => ({ prKey, watermark }));
+  if (entries.length) await unravel.markSeen(entries);
+  for (const f of currentReview.findings) f.isNew = false;
+  renderReview();
+}
+
+async function renderSelectedMarkdown(onlyNew = false) {
+  const ids = onlyNew
+    ? currentReview.findings.filter((f) => f.isNew).map((f) => f.uid || f.dedupeId)
+    : selectedReviewIds();
   if (currentReview.multi) {
     return unravel.renderReviewMulti({
       prs: currentReview.prs,
       findings: currentReview.findings,
-      selectedIds,
+      selectedIds: ids,
     });
   }
   return unravel.renderReview({
@@ -530,14 +568,27 @@ async function renderSelectedMarkdown() {
     prNumber: currentReview.prNumber,
     findings: currentReview.findings,
     events: currentReview.events,
-    selectedIds,
+    selectedIds: ids,
   });
 }
+
+$('btn-review-copynew').addEventListener('click', async () => {
+  try {
+    const md = await renderSelectedMarkdown(true);
+    await unravel.copyText(md);
+    const n = newCount();
+    await advanceWatermark();
+    toast(`Copied ${n} new finding${n === 1 ? '' : 's'} — paste it to your coding agent.`);
+  } catch (err) {
+    toast(errMessage(err), { error: true });
+  }
+});
 
 $('btn-review-copy').addEventListener('click', async () => {
   try {
     const md = await renderSelectedMarkdown();
     await unravel.copyText(md);
+    await advanceWatermark();
     toast('Copied — paste it to your coding agent.');
   } catch (err) {
     toast(errMessage(err), { error: true });
@@ -552,6 +603,7 @@ $('btn-review-save').addEventListener('click', async () => {
       prNumber: currentReview.multi ? 'consolidated' : currentReview.prNumber,
     });
     if (!result.canceled) {
+      await advanceWatermark();
       toast('Saved recommended changes', {
         action: { label: 'Show in Finder', onClick: () => unravel.reveal(result.path) },
       });
