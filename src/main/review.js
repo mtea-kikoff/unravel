@@ -499,39 +499,60 @@ function renderMultiMarkdown({ prs, findings, selectedIds }) {
   return lines.join('\n').replace(/\n{3,}/g, '\n\n').trim() + '\n';
 }
 
-// Merge several single-thread reviews into one consolidated result. Findings
-// are tagged with their PR and given a globally-unique uid.
+// Merge several single-thread reviews into one consolidated result. A PR can
+// span more than one email thread (GitHub sometimes splits notifications), so
+// threads sharing a PR merge into one section keeping every thread's findings;
+// only findings that are truly identical across threads collapse (keeping the
+// most recent). Findings are tagged with their PR and a globally-unique uid.
 function consolidateReviews(reviews) {
   const prs = [];
-  const findings = [];
-  const seenPrKeys = new Set();
-  const seenUids = new Set();
+  const prByKey = new Map();
+  const raw = [];
   for (const r of reviews) {
     if (!r.ok) {
       prs.push({ ok: false, input: r.input, error: r.error });
       continue;
     }
-    // The same PR can be reached from two inputs (duplicate box, or a message
-    // link + a thread link). Count it once so its findings don't render twice.
     const prKey = r.isPullRequest && r.repo && r.prNumber ? `${r.repo}#${r.prNumber}` : null;
-    if (prKey && seenPrKeys.has(prKey)) continue;
-    if (prKey) seenPrKeys.add(prKey);
-    prs.push({
-      ok: true,
-      input: r.input,
-      isPullRequest: r.isPullRequest,
-      repo: r.repo,
-      prNumber: r.prNumber,
-      subject: r.subject,
-      count: r.findings.length,
-    });
-    for (const f of r.findings) {
-      const uid = `${r.prNumber || 'x'}:${f.dedupeId}`;
-      if (seenUids.has(uid)) continue;
-      seenUids.add(uid);
-      findings.push({ ...f, repo: r.repo, prNumber: r.prNumber, uid });
+    if (!prKey || !prByKey.has(prKey)) {
+      const entry = {
+        ok: true,
+        input: r.input,
+        isPullRequest: r.isPullRequest,
+        repo: r.repo,
+        prNumber: r.prNumber,
+        subject: r.subject,
+        count: 0,
+      };
+      if (prKey) prByKey.set(prKey, entry);
+      prs.push(entry);
     }
+    for (const f of r.findings) raw.push({ ...f, repo: r.repo, prNumber: r.prNumber });
   }
+
+  // Collapse findings identical across threads of the same PR (same file, line,
+  // and title, or same dedupe id), keeping the most recent. Line-shifted or
+  // differently-titled findings are kept separate.
+  const byKey = new Map();
+  for (const f of raw) {
+    const idKey =
+      f.file && f.lineStart
+        ? `${f.prNumber}::${f.file}:${f.lineStart}:${(f.title || '').toLowerCase().slice(0, 60)}`
+        : `${f.prNumber}::${f.dedupeId}`;
+    const prev = byKey.get(idKey);
+    if (!prev || (f.date || 0) >= (prev.date || 0)) byKey.set(idKey, { ...f, uid: idKey });
+  }
+  const findings = [...byKey.values()].sort(
+    (a, b) =>
+      (a.prNumber || 0) - (b.prNumber || 0) ||
+      severityRank(a.severity) - severityRank(b.severity) ||
+      (a.file || '').localeCompare(b.file || '') ||
+      (a.lineStart || 0) - (b.lineStart || 0)
+  );
+  for (const entry of prByKey.values()) {
+    entry.count = findings.filter((f) => f.prNumber === entry.prNumber && f.repo === entry.repo).length;
+  }
+
   return {
     prs,
     findings,
