@@ -504,11 +504,18 @@ function renderMultiMarkdown({ prs, findings, selectedIds }) {
 function consolidateReviews(reviews) {
   const prs = [];
   const findings = [];
+  const seenPrKeys = new Set();
+  const seenUids = new Set();
   for (const r of reviews) {
     if (!r.ok) {
       prs.push({ ok: false, input: r.input, error: r.error });
       continue;
     }
+    // The same PR can be reached from two inputs (duplicate box, or a message
+    // link + a thread link). Count it once so its findings don't render twice.
+    const prKey = r.isPullRequest && r.repo && r.prNumber ? `${r.repo}#${r.prNumber}` : null;
+    if (prKey && seenPrKeys.has(prKey)) continue;
+    if (prKey) seenPrKeys.add(prKey);
     prs.push({
       ok: true,
       input: r.input,
@@ -519,7 +526,10 @@ function consolidateReviews(reviews) {
       count: r.findings.length,
     });
     for (const f of r.findings) {
-      findings.push({ ...f, repo: r.repo, prNumber: r.prNumber, uid: `${r.prNumber || 'x'}:${f.dedupeId}` });
+      const uid = `${r.prNumber || 'x'}:${f.dedupeId}`;
+      if (seenUids.has(uid)) continue;
+      seenUids.add(uid);
+      findings.push({ ...f, repo: r.repo, prNumber: r.prNumber, uid });
     }
   }
   return {
