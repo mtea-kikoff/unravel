@@ -134,10 +134,10 @@ $('form-search').addEventListener('submit', async (e) => {
   closeThread();
   closeConsolidate();
 
-  // PR-number shortcut: "#940", "PR #940", "PR 940", or a comma list of them.
-  // A bare number ("940") stays a normal Gmail search to avoid hijacking it.
+  // PR-number shortcut: "#940", "PR #940", "PR 940", a range "940-957", or a
+  // comma list of those. A bare single number ("940") stays a Gmail search.
   const parts = q.split(',').map((s) => s.trim()).filter(Boolean);
-  if (parts.length && parts.every((s) => /^(?:pr\b\s*#?\s*\d{1,7}|#\s*\d{1,7})$/i.test(s))) {
+  if (parts.length && parts.every(isPrRefPart)) {
     return openReviewsByRefs(parts);
   }
 
@@ -252,6 +252,17 @@ $('btn-deselect-all').addEventListener('click', () => setAllChecked(false));
 
 let currentReview = null;
 
+// A main-bar token that means "look up PR(s)": #940 / PR #940 / PR 940, or a
+// range like 940-957 (prefix optional since a range is unambiguous). A bare
+// single number is intentionally excluded so it stays a Gmail search.
+function isPrRefPart(s) {
+  return (
+    /^(?:pr\b\s*)?#\s*\d{1,7}(?:\s*-\s*#?\s*\d{1,7})?$/i.test(s) ||
+    /^pr\b\s*\d{1,7}(?:\s*-\s*\d{1,7})?$/i.test(s) ||
+    /^\d{1,7}\s*-\s*\d{1,7}$/.test(s)
+  );
+}
+
 function isLinkLike(s) {
   return (
     s.includes('mail.google.com') ||
@@ -278,7 +289,7 @@ function addLinkRow(value = '') {
   input.type = 'text';
   input.className = 'link-input';
   input.spellcheck = false;
-  input.placeholder = 'PR number (e.g. 940) or a thread link';
+  input.placeholder = 'PR number, range (940-957), or a thread link';
   input.value = value;
   input.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter') return;

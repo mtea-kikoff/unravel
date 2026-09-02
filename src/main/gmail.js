@@ -274,6 +274,25 @@ function parsePrNumber(ref) {
   return m ? Number(m[1]) : null;
 }
 
+const MAX_RANGE = 100;
+
+// A single PR number or a range ("940-957") → array of numbers; a link → null.
+function expandPrRef(ref) {
+  const s = String(ref || '').trim();
+  const range = s.match(/^(?:pr\s*)?#?\s*(\d{1,7})\s*-\s*#?\s*(\d{1,7})$/i);
+  if (range) {
+    let a = Number(range[1]);
+    let b = Number(range[2]);
+    if (b < a) [a, b] = [b, a];
+    if (b - a + 1 > MAX_RANGE) b = a + MAX_RANGE - 1;
+    const out = [];
+    for (let n = a; n <= b; n++) out.push(n);
+    return out;
+  }
+  const single = parsePrNumber(s);
+  return single != null ? [single] : null;
+}
+
 // Find every GitHub notification thread for a PR number. Gmail's # handling is
 // fuzzy, so we verify each candidate's subject really carries "(PR #<n>)".
 async function findPrThreads(prNumber) {
@@ -306,19 +325,22 @@ async function findPrThreads(prNumber) {
 // GitHub threads, then extract and consolidate everything.
 async function getReviewsByRefs(refs) {
   const inputs = [];
-  const notFound = [];
+  const prNumbers = [];
   for (const ref of refs) {
-    const num = parsePrNumber(ref);
-    if (num != null) {
-      const threads = await findPrThreads(num);
-      if (!threads.length) notFound.push(num);
-      for (const t of threads) inputs.push(t.threadId);
-    } else {
-      inputs.push(ref);
-    }
+    const nums = expandPrRef(ref);
+    if (nums) prNumbers.push(...nums);
+    else inputs.push(ref); // a thread link/id
   }
+
+  const notFound = [];
+  await mapWithConcurrency([...new Set(prNumbers)], 5, async (num) => {
+    const threads = await findPrThreads(num);
+    if (!threads.length) notFound.push(num);
+    else for (const t of threads) inputs.push(t.threadId);
+  });
+
   const result = await getReviews([...new Set(inputs)]);
-  result.notFound = notFound;
+  result.notFound = notFound.sort((a, b) => a - b);
   return result;
 }
 
