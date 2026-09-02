@@ -268,6 +268,60 @@ async function getReviews(inputs) {
   return review.consolidateReviews(reviews);
 }
 
+// "940", "#940", "PR #940", "PR 940" → 940; a link/id → null.
+function parsePrNumber(ref) {
+  const m = String(ref || '').trim().match(/^(?:pr\s*)?#?\s*(\d{1,7})$/i);
+  return m ? Number(m[1]) : null;
+}
+
+// Find every GitHub notification thread for a PR number. Gmail's # handling is
+// fuzzy, so we verify each candidate's subject really carries "(PR #<n>)".
+async function findPrThreads(prNumber) {
+  const g = gmail();
+  const list = await g.users.threads.list({
+    userId: 'me',
+    q: `from:notifications@github.com "(PR #${prNumber})"`,
+    maxResults: 25,
+  });
+  const threads = list.data.threads || [];
+  const resolved = await mapWithConcurrency(threads, 6, async (t) => {
+    const detail = await g.users.threads.get({
+      userId: 'me',
+      id: t.id,
+      format: 'metadata',
+      metadataHeaders: ['Subject', 'From'],
+    });
+    const messages = detail.data.messages || [];
+    const subject = messages.length ? header(messages[0], 'Subject') : '';
+    const m = subject.match(/\[([^\]]+)\][\s\S]*?\(PR #(\d+)\)/);
+    const fromGithub = messages.some((x) => /notifications@github\.com/i.test(header(x, 'From')));
+    return m && Number(m[2]) === prNumber && fromGithub
+      ? { threadId: t.id, repo: m[1], prNumber }
+      : null;
+  });
+  return resolved.filter(Boolean);
+}
+
+// Accept a mix of PR numbers and thread links; resolve numbers to their
+// GitHub threads, then extract and consolidate everything.
+async function getReviewsByRefs(refs) {
+  const inputs = [];
+  const notFound = [];
+  for (const ref of refs) {
+    const num = parsePrNumber(ref);
+    if (num != null) {
+      const threads = await findPrThreads(num);
+      if (!threads.length) notFound.push(num);
+      for (const t of threads) inputs.push(t.threadId);
+    } else {
+      inputs.push(ref);
+    }
+  }
+  const result = await getReviews([...new Set(inputs)]);
+  result.notFound = notFound;
+  return result;
+}
+
 async function fetchAttachment(messageId, attachmentId) {
   const res = await gmail().users.messages.attachments.get({
     userId: 'me',
@@ -277,4 +331,12 @@ async function fetchAttachment(messageId, attachmentId) {
   return Buffer.from(res.data.data, 'base64url');
 }
 
-module.exports = { searchThreads, getThread, getReview, getReviews, fetchAttachment, parseThreadInput };
+module.exports = {
+  searchThreads,
+  getThread,
+  getReview,
+  getReviews,
+  getReviewsByRefs,
+  fetchAttachment,
+  parseThreadInput,
+};

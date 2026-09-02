@@ -134,6 +134,13 @@ $('form-search').addEventListener('submit', async (e) => {
   closeThread();
   closeConsolidate();
 
+  // PR-number shortcut: "#940", "PR #940", "PR 940", or a comma list of them.
+  // A bare number ("940") stays a normal Gmail search to avoid hijacking it.
+  const parts = q.split(',').map((s) => s.trim()).filter(Boolean);
+  if (parts.length && parts.every((s) => /^(?:pr\b\s*#?\s*\d{1,7}|#\s*\d{1,7})$/i.test(s))) {
+    return openReviewsByRefs(parts);
+  }
+
   // One or more pasted links/IDs (whitespace-, comma-, or newline-separated).
   const links = extractLinkTokens(q);
   if (links.length >= 2) {
@@ -271,7 +278,7 @@ function addLinkRow(value = '') {
   input.type = 'text';
   input.className = 'link-input';
   input.spellcheck = false;
-  input.placeholder = 'Paste a PR thread link…';
+  input.placeholder = 'PR number (e.g. 940) or a thread link';
   input.value = value;
   input.addEventListener('keydown', (e) => {
     if (e.key !== 'Enter') return;
@@ -317,19 +324,43 @@ $('btn-add-row').addEventListener('click', () => addLinkRow());
 
 $('btn-consolidate-go').addEventListener('click', () => {
   if (busy) return;
-  const links = linkInputs()
-    .map((i) => i.value.trim())
-    .filter(Boolean)
-    .flatMap(extractLinkTokens);
-  if (!links.length) {
-    toast('Paste at least one PR thread link.', { error: true });
+  // Each box may hold a PR number, a link, or a comma/space-separated list.
+  const refs = linkInputs()
+    .flatMap((i) => i.value.split(/[\s,]+/))
+    .map((s) => s.trim())
+    .filter(Boolean);
+  if (!refs.length) {
+    toast('Enter at least one PR number or thread link.', { error: true });
     return;
   }
   closeThread();
   closeConsolidate();
-  if (links.length === 1) openThread(links[0]);
-  else openReviews(links);
+  openReviewsByRefs(refs);
 });
+
+// Resolve PR numbers to their GitHub threads (and accept links), then extract
+// and consolidate.
+async function openReviewsByRefs(refs) {
+  if (busy) return;
+  busy = true;
+  setStatus(`Finding review threads for ${refs.length} PR${refs.length === 1 ? '' : 's'}…`);
+  try {
+    currentReview = await unravel.extractReviewsByRefs(refs);
+    currentReview.multi = true;
+    setStatus('');
+    renderReview();
+    if (currentReview.notFound?.length) {
+      toast(
+        `No GitHub review threads found for PR ${currentReview.notFound.map((n) => `#${n}`).join(', ')}.`,
+        { error: true }
+      );
+    }
+  } catch (err) {
+    setStatus(errMessage(err), true);
+  } finally {
+    busy = false;
+  }
+}
 
 // Extract and consolidate several PR threads at once.
 async function openReviews(links) {
@@ -467,14 +498,14 @@ function renderReview() {
     $('review-title').textContent = `${okPrs.length} PR${okPrs.length === 1 ? '' : 's'} · ${s.total} recommended change${s.total === 1 ? '' : 's'}`;
     // Surface anything that couldn't contribute.
     const skipped = currentReview.prs.filter((p) => !p.ok || !p.isPullRequest);
-    if (skipped.length) {
+    const notes = skipped.map((p) =>
+      !p.ok ? `a link (${p.error})` : `“${(p.subject || p.input).slice(0, 40)}” (not a PR thread)`
+    );
+    for (const n of currentReview.notFound || []) notes.push(`PR #${n} (no threads found in your mail)`);
+    if (notes.length) {
       const note = document.createElement('p');
       note.className = 'review-note';
-      note.textContent =
-        'Skipped: ' +
-        skipped
-          .map((p) => (!p.ok ? `a link (${p.error})` : `“${(p.subject || p.input).slice(0, 40)}” (not a PR thread)`))
-          .join('; ');
+      note.textContent = 'Skipped: ' + notes.join('; ');
       box.appendChild(note);
     }
   } else {

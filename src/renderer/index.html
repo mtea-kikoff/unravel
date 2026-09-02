@@ -66,19 +66,19 @@
         <button type="submit" class="primary" id="btn-search">Find</button>
         <button type="button" class="ghost" id="btn-clear" title="Clear everything and start over">Clear</button>
       </form>
-      <p class="hint">Searches use Gmail syntax — try <code>from:brunner has:attachment</code>. Paste a thread link to open it.</p>
+      <p class="hint">Search Gmail (e.g. <code>from:brunner has:attachment</code>), paste a thread link, or type a PR number like <code>#940</code> to pull its review threads.</p>
 
-      <button type="button" class="link consolidate-open" id="btn-consolidate-open">+ Consolidate reviews from multiple PRs</button>
+      <button type="button" class="link consolidate-open" id="btn-consolidate-open">+ Pull reviews by PR number</button>
 
       <div class="consolidate" id="consolidate" hidden>
         <div class="consolidate-head">
-          <span>Consolidate PR reviews — one link per box</span>
+          <span>Enter PR numbers (or thread links) — one per box</span>
           <button type="button" class="link" id="btn-consolidate-close">Close</button>
         </div>
         <div id="link-rows"></div>
         <div class="consolidate-actions">
-          <button type="button" class="ghost" id="btn-add-row">+ Add another link</button>
-          <button type="button" class="primary" id="btn-consolidate-go">Extract &amp; consolidate</button>
+          <button type="button" class="ghost" id="btn-add-row">+ Add another</button>
+          <button type="button" class="primary" id="btn-consolidate-go">Find &amp; consolidate</button>
         </div>
       </div>
 

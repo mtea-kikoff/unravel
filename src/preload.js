@@ -9,6 +9,7 @@ contextBridge.exposeInMainWorld('unravel', {
   getThread: (input) => ipcRenderer.invoke('gmail:thread', input),
   extractReview: (input) => ipcRenderer.invoke('review:extract', input),
   extractReviews: (inputs) => ipcRenderer.invoke('review:extractMulti', inputs),
+  extractReviewsByRefs: (refs) => ipcRenderer.invoke('review:extractByRefs', refs),
   renderReview: (payload) => ipcRenderer.invoke('review:render', payload),
   renderReviewMulti: (payload) => ipcRenderer.invoke('review:renderMulti', payload),
   copyText: (text) => ipcRenderer.invoke('review:copy', text),

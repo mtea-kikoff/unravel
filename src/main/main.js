@@ -93,6 +93,7 @@ function registerIpc() {
   ipcMain.handle('gmail:thread', (_e, input) => gmail.getThread(input));
   ipcMain.handle('review:extract', (_e, input) => gmail.getReview(input));
   ipcMain.handle('review:extractMulti', (_e, inputs) => gmail.getReviews(inputs));
+  ipcMain.handle('review:extractByRefs', (_e, refs) => gmail.getReviewsByRefs(refs));
   ipcMain.handle('review:renderMulti', (_e, payload) =>
     require('./review').renderMultiMarkdown(payload)
   );
