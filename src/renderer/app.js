@@ -210,6 +210,26 @@ function closeThread() {
   setStatus('');
 }
 
+// Wipe the whole workspace back to a blank slate for a fresh review. Leaves
+// the Gmail connection and the "new since last copy" history untouched.
+function clearWorkspace() {
+  $('input-search').value = '';
+  lastResults = [];
+  currentThread = null;
+  currentReview = null;
+  $('results').innerHTML = '';
+  $('results').hidden = true;
+  $('thread').hidden = true;
+  $('review').hidden = true;
+  $('actionbar').hidden = true;
+  $('review-actionbar').hidden = true;
+  $('link-rows').innerHTML = '';
+  closeConsolidate();
+  setStatus('');
+  $('input-search').focus();
+}
+$('btn-clear').addEventListener('click', clearWorkspace);
+
 $('btn-back').addEventListener('click', closeThread);
 
 function setAllChecked(checked) {
